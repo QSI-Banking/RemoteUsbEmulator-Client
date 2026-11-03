@@ -4,7 +4,7 @@
 
 [![latest release](https://img.shields.io/github/v/release/vadimgrn/usbip-win2?include_prereleases)](https://github.com/vadimgrn/usbip-win2/releases/latest) [![release date](https://img.shields.io/github/release-date-pre/vadimgrn/usbip-win2)](https://github.com/vadimgrn/usbip-win2/releases/latest) [![downloads](https://img.shields.io/github/downloads-pre/vadimgrn/usbip-win2/latest/total)](https://github.com/vadimgrn/usbip-win2/releases/latest) [![commits since](https://img.shields.io/github/commits-since/vadimgrn/usbip-win2/latest/develop?include_prereleases "commits since")](https://github.com/vadimgrn/usbip-win2/commits/develop) [![commit activity](https://img.shields.io/github/commit-activity/m/vadimgrn/usbip-win2/develop "commit activity")](https://github.com/vadimgrn/usbip-win2/commits/develop) [![license](https://img.shields.io/github/license/vadimgrn/usbip-win2)](https://github.com/vadimgrn/usbip-win2/blob/master/LICENSE.txt)
 
-# USB/IP Client for Windows
+# Native USB/IP Client for Windows
 - Fully compatible with the [USB/IP protocol](https://www.kernel.org/doc/html/latest/usb/usbip_protocol.html)
 - Works with Linux USB/IP servers for kernels 4.19 through 7.0
 - **[WHLK](https://en.wikipedia.org/wiki/Windows_Hardware_Lab_Kit) certified (or attestation signed) drivers**
