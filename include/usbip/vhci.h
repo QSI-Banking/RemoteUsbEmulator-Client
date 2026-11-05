@@ -78,6 +78,7 @@ struct imported_device_config
         imported_device_location location;
         char serial[SERIAL_BUFSZ];
         bool wsk_events;
+        char user[USER_NAME_BUFSZ]; // Required, sent in OP_REQ_AUTH
 };
 
 struct imported_device_hardware
@@ -157,6 +158,7 @@ struct plugin_hardware : base
         ULONG location_hash; // OUT, hash(host,service,busid)
 
         imported_device_config config;
+        char otp[OTP_BUFSZ]; // One-time password, never stored or reported back
 };
 static_assert(offsetof_ex(plugin_hardware, port) == sizeof(base));
 static_assert(offsetof_ex(plugin_hardware, location_hash) == sizeof(base) + sizeof(plugin_hardware::port));

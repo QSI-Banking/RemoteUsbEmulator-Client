@@ -58,39 +58,23 @@ auto pack(Cmd &&cmd, std::shared_ptr<Args> args)
         };
 }
 
-auto serial_validator(const std::string &serial)
-{
-        std::string s;
-        if (!validate_device_serial(serial)) {
-                s = get_last_error_msg();
-                if (s.empty()) {
-                        s = "invalid device serial number";
-                }
-        }
-        return s;
-}
-
 void add_cmd_attach(CLI::App &app)
 {
         auto r = std::make_shared<attach_args>();
 
-        auto cmd = app.add_subcommand("attach", "Attach remote/persistent USB device(s)")
-                ->callback(pack(cmd_attach, r))
-                ->require_option(1);
+        /*
+         * The server picks the device mapped to the user; the connection always goes to the
+         * local TLS tunnel (127.0.0.1:3240) and is never retried automatically.
+         */
+        auto cmd = app.add_subcommand("attach", "Attach the USB device mapped to a user");
+        auto rem = cmd;
 
-        auto rem = cmd->add_option_group("Remote", "Attach remote USB device");
-
-        rem->add_option("-r,--remote", r->remote, "Hostname/IP of a USB/IP server with exported USB devices")
+        rem->add_option("-u,--user", r->user, "User name")
                 ->required();
 
-        rem->add_option("-b,--bus-id", r->busid, "Bus Id of the USB device on a server")
-                ->required();
+        rem->add_option("--otp", r->otp, "One-time password (prompted for if omitted)");
 
-        rem->add_option("--serial", r->serial, "device serial number")->check(serial_validator);
         rem->add_flag("-t,--terse", r->terse, "Show port number as a result");
-
-        auto stop = rem->add_flag("-x,--stop", r->stop, "Stop attach attempts to this device");
-        rem->add_flag("--once", r->once, "Do not start automatic attach attempts if cannot connect")->excludes(stop);
 
         auto receive = [&mode = r->recv_mode, low_lat = str_low_latency] (const auto &choice)
         {
@@ -99,16 +83,9 @@ void add_cmd_attach(CLI::App &app)
 
         rem->add_option_function<std::string>("--receive-mode", receive, "How to receive data from the network")
                 ->check(CLI::IsMember({str_zero_copy, str_low_latency}))
-                ->default_str(str_zero_copy)
-                ->excludes(stop);
+                ->default_str(str_zero_copy);
 
-        auto stop_all = cmd->add_option_group("Stop")
-                ->add_flag("-X,--stop-all", r->stop_all, "Stop all active attach attempts");
-
-        stop->excludes(stop_all);
-
-        cmd->add_option_group("Persistent", "Attach persistent USB device(s)")
-                ->add_flag("-s,--stashed,--persistent", r->persistent, "Attach persistent device(s) stashed by 'port --stash'");
+        cmd->callback(pack(cmd_attach, r));
 }
 
 void add_cmd_detach(CLI::App &app)
@@ -127,22 +104,6 @@ void add_cmd_detach(CLI::App &app)
                 ->check(CLI::IsMember({"closeonly"}))
                 ->expected(0, 1)
                 ->excludes(opt_port);
-}
-
-void add_cmd_list(CLI::App &app)
-{
-        auto r = std::make_shared<list_args>();
-
-        auto cmd = app.add_subcommand("list", "List exportable/persistent USB devices")
-                ->callback(pack(cmd_list, r))
-                ->require_option(1);
-
-        cmd->add_option_group("Remote", "List exportable USB devices")
-                ->add_option("-r,--remote", r->remote, "List exportable devices on a remote")
-                ->required();
-
-        cmd->add_option_group("Persistent", "List persistent USB devices")
-                ->add_flag("-s,--stashed,--persistent", r->persistent, "List persistent devices stashed by 'port --stash'");
 }
 
 void add_cmd_port(CLI::App &app)
@@ -175,13 +136,8 @@ void init(CLI::App &app)
         app.add_flag("-d,--debug",
                 [] (auto) { log::set_debug(true); }, "Debug output");
 
-        app.add_option("-t,--tcp-port", global_args.tcp_port, "TCP/IP port number of USB/IP server")
-                ->check(CLI::Range(1024, USHRT_MAX))
-                ->default_str(global_args.tcp_port);
-
         add_cmd_attach(app);
         add_cmd_detach(app);
-        add_cmd_list(app);
         add_cmd_port(app);
 
         app.require_subcommand(1);

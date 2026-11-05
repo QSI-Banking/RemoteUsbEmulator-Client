@@ -8,8 +8,9 @@
 #include "log.h"
 
 #include <libusbip/vhci.h>
-#include <libusbip/persistent.h>
+#include <resources/messages.h>
 
+#include <iostream>
 #include <print>
 
 namespace
@@ -17,40 +18,38 @@ namespace
 
 using namespace usbip;
 
-bool attach_persistent_devices(_In_ HANDLE dev)
+/*
+ * Fixed endpoint of the local TLS tunnel. The driver enforces the same values (include/usbip/consts.h),
+ * so these are informational only.
+ */
+constexpr auto &tunnel_host = "127.0.0.1";
+constexpr auto &tunnel_port = "3240";
+constexpr auto &auth_busid_placeholder = "auth"; // the server returns the real busid in OP_REP_AUTH
+
+/*
+ * Read the one-time password from the console without echo.
+ */
+auto read_otp()
 {
-        auto v = vhci::get_persistent(dev);
-        if (!v) {
-                log::error(get_last_error_msg());
-                return false;
+        std::string otp;
+
+        auto in = GetStdHandle(STD_INPUT_HANDLE);
+        DWORD mode{};
+        auto console = GetConsoleMode(in, &mode);
+
+        if (console) {
+                SetConsoleMode(in, mode & ~ENABLE_ECHO_INPUT);
         }
 
-        auto ok = true;
+        std::print("One-time password: ");
+        std::getline(std::cin, otp);
 
-        for (const auto &args: *v) {
-                std::println("{}", args);
-
-                if (!vhci::attach(dev, args)) {
-                        log::error(get_last_error_msg());
-                        ok = false;
-                }
+        if (console) {
+                SetConsoleMode(in, mode);
+                std::println();
         }
 
-        return ok;
-}
-
-bool stop_attach_attempts(_In_ HANDLE dev, _In_opt_ const device_location *loc)
-{
-        auto cnt = vhci::stop_attach_attempts(dev, loc);
-        auto ok = cnt >= 0;
-
-        if (ok) {
-                log::debug("{} request(s) stopped", cnt);
-        } else {
-                log::error(get_last_error_msg());
-        }
-
-        return ok;
+        return otp;
 }
 
 } // namespace
@@ -66,44 +65,48 @@ bool usbip::cmd_attach(const attach_args &args)
 
         ctrl_c_guard guard(dev.get());
 
-        if (args.persistent) {
-                return attach_persistent_devices(dev.get());
-        }
-
-        if (args.stop_all) {
-                return stop_attach_attempts(dev.get(), nullptr);
-        }
-
-        device_location loc {
-                .hostname = args.remote,
-                .service = global_args.tcp_port,
-                .busid = args.busid,
-        };
-
-        if (args.stop) {
-                return stop_attach_attempts(dev.get(), &loc);
-        }
-
         vhci::attach_args cmd_args {
                 .config = {
-                        .location = std::move(loc),
-                        .serial = args.serial,
+                        .location = {
+                                .hostname = tunnel_host,
+                                .service = tunnel_port,
+                                .busid = auth_busid_placeholder,
+                        },
                         .recv_mode = args.recv_mode,
+                        .user = args.user,
                 },
-                .once = args.once,
+                .once = true, // Never reconnect automatically, a new attach needs a new one-time password
+                .otp = args.otp.empty() ? read_otp() : args.otp,
         };
 
         auto port = vhci::attach(dev.get(), cmd_args);
+        SecureZeroMemory(cmd_args.otp.data(), cmd_args.otp.size());
+
         if (!port) {
-                log::error(get_last_error_msg());
+                auto err = GetLastError();
+                if (err == USBIP_ERROR_ST_NODEV) {
+                        log::error("no device is bound to user '{}'", args.user);
+                } else {
+                        log::error(get_last_error_msg(err));
+                }
                 return false;
         }
 
         if (args.terse) {
                 std::println("{}", port);
-        } else {
-                std::println("successfully attached to port {}", port);
+                return true;
         }
 
+        std::string busid;
+        if (auto devices = vhci::get_imported_devices(dev.get())) {
+                for (auto &d: *devices) {
+                        if (d.port == port) {
+                                busid = d.config.location.busid;
+                                break;
+                        }
+                }
+        }
+
+        std::println("successfully attached busid '{}' for user '{}' to port {}", busid, args.user, port);
         return true;
 }

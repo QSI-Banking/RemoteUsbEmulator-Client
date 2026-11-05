@@ -24,22 +24,16 @@ struct global_args
 };
 inline global_args global_args;
 
+/*
+ * Attach takes only a user and a one-time password. The endpoint is fixed to the local TLS tunnel,
+ * the busid comes from the server, and the attach is never retried automatically.
+ */
 struct attach_args
 {
-        // --remote
-        std::string remote;
-        std::string busid;
-        std::string serial;
+        std::string user;
+        std::string otp; // prompted for if empty
         bool terse{};
-        bool stop{};
-        bool once{};
         receive_mode recv_mode = receive_mode::zero_copy;
-
-        // --persistent,--stashed
-        bool persistent{};
-
-        // --stop-all
-        bool stop_all{};
 };
 bool cmd_attach(const attach_args &args);
 
@@ -48,16 +42,6 @@ struct detach_args
         int port = vhci::port_all;
 };
 bool cmd_detach(const detach_args &args);
-
-struct list_args
-{
-        // --remote
-        std::string remote;
-
-        // --persistent,--stashed
-        bool persistent{};
-};
-bool cmd_list(const list_args &args);
 
 struct port_args
 {

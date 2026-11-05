@@ -183,7 +183,6 @@
     <ClCompile Include="usbip.cpp" />
     <ClCompile Include="attach.cpp" />
     <ClCompile Include="detach.cpp" />
-    <ClCompile Include="list.cpp" />
     <ClCompile Include="port.cpp" />
   </ItemGroup>
   <ItemGroup>

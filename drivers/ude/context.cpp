@@ -149,6 +149,19 @@ PAGED NTSTATUS usbip::create_device_ctx_ext(
                 return st;
         }
 
+        // Validated by plugin_hardware
+        st = RtlStringCbCopyNA(config.user, sizeof(config.user), r.config.user, sizeof(r.config.user));
+        if (!NT_SUCCESS(st)) {
+                Trace(TRACE_LEVEL_ERROR, "RtlStringCbCopyNA('%s') %!STATUS!", r.config.user, st);
+                return st;
+        }
+
+        st = RtlStringCbCopyNA(ext.attr.otp, sizeof(ext.attr.otp), r.otp, sizeof(r.otp));
+        if (!NT_SUCCESS(st)) {
+                Trace(TRACE_LEVEL_ERROR, "RtlStringCbCopyNA(otp) %!STATUS!", st); // never trace the value
+                return st;
+        }
+
         ctx_ext = del.release<WDFMEMORY>();
         return STATUS_SUCCESS;
 }
@@ -202,6 +215,7 @@ _IRQL_requires_same_
 _IRQL_requires_max_(DISPATCH_LEVEL)
 void usbip::free(_Inout_ device_attributes &r)
 {
+        RtlSecureZeroMemory(r.otp, sizeof(r.otp));
         FreeUnicodeString(r.node_name, unique_ptr::pooltag); // @see RtlFreeUnicodeString
         FreeUnicodeString(r.service_name, unique_ptr::pooltag);
         FreeUnicodeString(r.busid, unique_ptr::pooltag);

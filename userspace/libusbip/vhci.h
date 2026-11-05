@@ -59,6 +59,7 @@ struct device_config
         device_location location;
         std::string serial; ///< optional device serial number if you want to set/override it
         receive_mode recv_mode = receive_mode::zero_copy; ///< how to optimize data reception over the network
+        std::string user; ///< User name sent in OP_REQ_AUTH; the server picks the device mapped to it
 };
 
 struct imported_device
@@ -128,6 +129,7 @@ struct attach_args
 {
         device_config config;
         bool once{}; ///< do not start automatic attach attempts if cannot connect
+        std::string otp; ///< One-time password sent in OP_REQ_AUTH, never stored
 };
 
 /**

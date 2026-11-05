@@ -176,13 +176,125 @@ PAGED NTSTATUS recv_rep_import(_In_ device_ctx_ext &ext, _In_ memory pool, _Out_
         return STATUS_SUCCESS;
 }
 
+/*
+ * Request: op_common(OP_REQ_AUTH) + UINT8 user_len, user, UINT8 otp_len, otp.
+ * The one-time password is wiped from the device context and the stack as soon as it is sent.
+ */
+_IRQL_requires_same_
+_IRQL_requires_(PASSIVE_LEVEL)
+PAGED NTSTATUS send_req_auth(_Inout_ device_ctx_ext &ext)
+{
+        PAGED_CODE();
+
+        auto &user = ext.config().user;
+        auto &otp = ext.attr.otp;
+
+        size_t user_len{};
+        size_t otp_len{};
+
+        auto st = RtlStringCbLengthA(user, sizeof(user), &user_len);
+        if (NT_SUCCESS(st)) {
+                st = RtlStringCbLengthA(otp, sizeof(otp), &otp_len);
+        }
+        if (!NT_SUCCESS(st) || !user_len || !otp_len) {
+                RtlSecureZeroMemory(otp, sizeof(otp));
+                Trace(TRACE_LEVEL_ERROR, "user name and one-time password are required");
+                return STATUS_INVALID_PARAMETER;
+        }
+
+        struct {
+                op_common hdr{ USBIP_VERSION, OP_REQ_AUTH, ST_OK };
+                UCHAR body[2 + sizeof(user) + sizeof(otp)];
+        } req{};
+
+        static_assert(sizeof(req) == sizeof(req.hdr) + sizeof(req.body)); // no padding
+
+        auto p = req.body;
+
+        *p++ = static_cast<UCHAR>(user_len);
+        RtlCopyMemory(p, user, user_len);
+        p += user_len;
+
+        *p++ = static_cast<UCHAR>(otp_len);
+        RtlCopyMemory(p, otp, otp_len);
+        p += otp_len;
+
+        RtlSecureZeroMemory(otp, sizeof(otp)); // R5
+
+        byteswap(req.hdr);
+        auto len = static_cast<ULONG>(sizeof(req.hdr) + (p - req.body));
+
+        st = send(ext.sock, memory::stack, &req, len);
+        RtlSecureZeroMemory(&req, sizeof(req));
+
+        return st;
+}
+
+/*
+ * Reply: op_common(OP_REP_AUTH) + status; on ST_OK followed by op_auth_reply.
+ * The busid of the device mapped to the user replaces the placeholder set by plugin_hardware.
+ */
+_IRQL_requires_same_
+_IRQL_requires_(PASSIVE_LEVEL)
+PAGED NTSTATUS recv_rep_auth(_Inout_ device_ctx_ext &ext)
+{
+        PAGED_CODE();
+
+        NTSTATUS st = recv_op_common(ext.sock, OP_REP_AUTH);
+        if (NT_ERROR(st)) {
+                return st; // USBIP_ERROR_ST_AUTH_FAILED, USBIP_ERROR_ST_NODEV (no device mapped to the user), etc.
+        }
+
+        op_auth_reply reply{};
+        st = recv(ext.sock, memory::stack, &reply, sizeof(reply));
+        if (NT_ERROR(st)) {
+                Trace(TRACE_LEVEL_ERROR, "Receive op_auth_reply %!STATUS!", st);
+                return st;
+        }
+        byteswap(reply);
+
+        auto &busid = reply.busid;
+        if (!*busid || busid[ARRAYSIZE(busid) - 1]) {
+                Trace(TRACE_LEVEL_ERROR, "Invalid busid in OP_REP_AUTH");
+                return USBIP_ERROR_PROTOCOL;
+        }
+
+        auto &attr = ext.attr;
+        FreeUnicodeString(attr.busid, unique_ptr::pooltag);
+
+        st = utf8_to_unicode(attr.busid, busid, sizeof(busid), PagedPool, unique_ptr::pooltag);
+        if (!NT_SUCCESS(st)) {
+                Trace(TRACE_LEVEL_ERROR, "utf8_to_unicode('%s') %!STATUS!", busid, st);
+                return st;
+        }
+
+        st = hash_location(attr.location_hash, attr);
+        if (!NT_SUCCESS(st)) {
+                return st;
+        }
+
+        Trace(TRACE_LEVEL_INFORMATION, "user '%s' authenticated, busid '%s'", attr.config.user, busid);
+        return STATUS_SUCCESS;
+}
+
 _IRQL_requires_same_
 _IRQL_requires_(PASSIVE_LEVEL)
 PAGED auto import_remote_device(_Inout_ device_ctx_ext &ext)
 {
         PAGED_CODE();
 
-        auto st = send_req_import(ext);
+        auto st = send_req_auth(ext);
+        if (NT_ERROR(st)) {
+                Trace(TRACE_LEVEL_ERROR, "Send OP_REQ_AUTH %!STATUS!", st);
+                return st;
+        }
+
+        st = recv_rep_auth(ext);
+        if (NT_ERROR(st)) {
+                return st;
+        }
+
+        st = send_req_import(ext);
         if (NT_ERROR(st)) {
                 Trace(TRACE_LEVEL_ERROR, "Send OP_REQ_IMPORT %!STATUS!", st);
                 return st;
@@ -654,13 +766,13 @@ PAGED void getaddrinfo(
 _IRQL_requires_same_
 _IRQL_requires_(PASSIVE_LEVEL)
 PAGED auto plugin_hardware(
-        _In_ WDFREQUEST request, _In_ const vhci::ioctl::plugin_hardware &r, _In_ bool once)
+        _In_ WDFREQUEST request, _Inout_ vhci::ioctl::plugin_hardware &r, _In_ bool once)
 {
         PAGED_CODE();
 
-        Trace(TRACE_LEVEL_INFORMATION, "%s:%s/%s, serial '%s', once %d, wsk events %d",
+        Trace(TRACE_LEVEL_INFORMATION, "%s:%s/%s, user '%s', serial '%s', once %d, wsk events %d",
                                         r.config.location.host, r.config.location.service,
-                                        r.config.location.busid, r.config.serial, once, r.config.wsk_events);
+                                        r.config.location.busid, r.config.user, r.config.serial, once, r.config.wsk_events);
 
         auto vhci = get_vhci(request);
 
@@ -677,6 +789,8 @@ PAGED auto plugin_hardware(
         ctx.one_attempt = once;
 
         st = create_device_ctx_ext(ctx.ctx_ext, vhci, r);
+        RtlSecureZeroMemory(r.otp, sizeof(r.otp)); // Copied into the device context (or not needed)
+
         if (NT_ERROR(st)) {
                 WdfObjectDelete(wi);
                 return st;
@@ -735,6 +849,64 @@ PAGED NTSTATUS stop_attach_attempts(_In_ WDFREQUEST request)
         return st;
 }
 
+/*
+ * Every attach must authenticate, goes only to the local TLS tunnel, and is never retried automatically.
+ * Enforced here, not only in usbip.exe, because any local process can send this IOCTL (see Security Note above).
+ */
+_IRQL_requires_same_
+_IRQL_requires_(PASSIVE_LEVEL)
+PAGED NTSTATUS enforce_authenticated_attach(_Inout_ vhci::ioctl::plugin_hardware &r, _In_ bool once)
+{
+        PAGED_CODE();
+
+        auto valid_user = [] (const auto &s)
+        {
+                size_t len = 0;
+                for ( ; len < ARRAYSIZE(s) && s[len]; ++len) {
+                        auto c = s[len];
+                        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+                              c == '.' || c == '_' || c == '-')) {
+                                return false;
+                        }
+                }
+                return len && len < ARRAYSIZE(s); // non-empty and null-terminated
+        };
+
+        auto valid_otp = [] (const auto &s)
+        {
+                size_t len = 0;
+                for ( ; len < ARRAYSIZE(s) && s[len]; ++len) {
+                        if (auto c = s[len]; c <= ' ' || c > '~') {
+                                return false;
+                        }
+                }
+                return len && len < ARRAYSIZE(s);
+        };
+
+        if (!valid_user(r.config.user)) {
+                Trace(TRACE_LEVEL_ERROR, "a valid user name is required");
+                return STATUS_INVALID_PARAMETER;
+        } else if (!valid_otp(r.otp)) {
+                Trace(TRACE_LEVEL_ERROR, "a valid one-time password is required"); // never trace the value
+                return STATUS_INVALID_PARAMETER;
+        } else if (!once) {
+                Trace(TRACE_LEVEL_ERROR, "automatic attach attempts are not allowed for user '%s'", r.config.user);
+                return STATUS_INVALID_PARAMETER;
+        }
+
+        auto &loc = r.config.location;
+
+        auto st = RtlStringCbCopyA(loc.host, sizeof(loc.host), tunnel_host);
+        if (NT_SUCCESS(st)) {
+                st = RtlStringCbCopyA(loc.service, sizeof(loc.service), tcp_port);
+        }
+        if (NT_SUCCESS(st)) {
+                st = RtlStringCbCopyA(loc.busid, sizeof(loc.busid), auth_busid_placeholder); // replaced by OP_REP_AUTH
+        }
+
+        return st;
+}
+
 _IRQL_requires_same_
 _IRQL_requires_(PASSIVE_LEVEL)
 PAGED NTSTATUS plugin_hardware(_In_ WDFREQUEST request, _In_ bool once)
@@ -755,6 +927,10 @@ PAGED NTSTATUS plugin_hardware(_In_ WDFREQUEST request, _In_ bool once)
                 return USBIP_ERROR_ABI;
         } else if (st = validate_serial_number(r->config.serial); !NT_SUCCESS(st)) {
                 Trace(TRACE_LEVEL_ERROR, "bad serial '%s'", r->config.serial);
+                RtlSecureZeroMemory(r->otp, sizeof(r->otp));
+                return st;
+        } else if (st = enforce_authenticated_attach(*r, once); !NT_SUCCESS(st)) {
+                RtlSecureZeroMemory(r->otp, sizeof(r->otp));
                 return st;
         }
 

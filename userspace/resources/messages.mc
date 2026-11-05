@@ -150,3 +150,11 @@ SymbolicName=USBIP_ERROR_SERIAL_NUMBER
 Language=English
 USB device serial number must contain no more than 15 alphanumeric ASCII characters.
 .
+
+MessageId=
+Severity=Error
+Facility=Device
+SymbolicName=USBIP_ERROR_ST_AUTH_FAILED
+Language=English
+Authentication failed: unknown user or wrong one-time password.
+.

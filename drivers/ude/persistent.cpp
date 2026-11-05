@@ -880,6 +880,8 @@ bool usbip::can_reattach(_In_ WDFDEVICE vhci, _In_ ULONG location_hash, _In_ NTS
         case USBIP_ERROR_ABI:
         case USBIP_ERROR_VERSION:
         case USBIP_ERROR_PROTOCOL:
+        case USBIP_ERROR_ST_AUTH_FAILED: // A one-time password cannot be retried
+        case USBIP_ERROR_ST_NODEV: // No device is mapped to the user
                 return false; // unrecoverable errors
         case USBIP_ERROR_ST_DEV_BUSY:
                 return !vhci::has_device(vhci, location_hash);

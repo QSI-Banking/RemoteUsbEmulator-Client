@@ -16,6 +16,7 @@
 
 #include <span>
 #include <random>
+#include <string_view>
 
 namespace
 {
@@ -82,9 +83,53 @@ auto assign(_Inout_ vhci::imported_device_location &dst, _In_ const device_locat
         return ERROR_SUCCESS;
 }
 
+/*
+ * Same rules as the server (usbipd-win UserNames): 1..63 characters from [A-Za-z0-9._-].
+ */
+constexpr auto is_valid_user_name(_In_ std::string_view s) noexcept
+{
+        if (s.empty() || s.size() >= USER_NAME_BUFSZ) {
+                return false;
+        }
+
+        for (auto c: s) {
+                if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-')) {
+                        return false;
+                }
+        }
+
+        return true;
+}
+
+/*
+ * Printable ASCII, 1..15 characters.
+ */
+constexpr auto is_valid_otp(_In_ std::string_view s) noexcept
+{
+        if (s.empty() || s.size() >= OTP_BUFSZ) {
+                return false;
+        }
+
+        for (auto c: s) {
+                if (c <= ' ' || c > '~') {
+                        return false;
+                }
+        }
+
+        return true;
+}
+
 DWORD assign(_Inout_ vhci::imported_device_config &dst, _In_ const device_config &src)
 {
         dst.wsk_events = src.recv_mode == receive_mode::low_latency;
+
+        if (!is_valid_user_name(src.user)) {
+                libusbip::output("invalid user name '{}'", src.user);
+                return ERROR_INVALID_PARAMETER;
+        } else if (auto err = strncpy_s(dst.user, src.user.data(), src.user.size())) {
+                libusbip::output("strncpy_s('{}') error #{} {}", src.user, err, std::generic_category().message(err));
+                return ERROR_INVALID_PARAMETER;
+        }
 
         if (auto err = assign(dst.serial, src.serial)) {
                 return err;
@@ -95,6 +140,13 @@ DWORD assign(_Inout_ vhci::imported_device_config &dst, _In_ const device_config
 
 DWORD assign(_Inout_ vhci::ioctl::plugin_hardware &r, _In_ const vhci::attach_args &args)
 {
+        if (!is_valid_otp(args.otp)) {
+                libusbip::output("invalid one-time password"); // never print it
+                return ERROR_INVALID_PARAMETER;
+        } else if (strncpy_s(r.otp, args.otp.data(), args.otp.size())) {
+                return ERROR_INVALID_PARAMETER;
+        }
+
         return assign(r.config, args.config);
 }
 
@@ -118,6 +170,7 @@ auto make_device_config(_In_ const vhci::imported_device_config &c)
                 .location = make_device_location(c.location),
                 .serial{ c.serial, strnlen(c.serial, std::size(c.serial)) },
                 .recv_mode = c.wsk_events ? receive_mode::low_latency : receive_mode::zero_copy,
+                .user{ c.user, strnlen(c.user, std::size(c.user)) },
         };
 }
 
@@ -345,6 +398,7 @@ int usbip::vhci::attach(_In_ HANDLE dev, _In_ const attach_args &args)
         r.size = sizeof(r);
 
         if (auto err = assign(r, args)) {
+                SecureZeroMemory(r.otp, sizeof(r.otp));
                 SetLastError(err);
                 return 0;
         }
@@ -352,9 +406,13 @@ int usbip::vhci::attach(_In_ HANDLE dev, _In_ const attach_args &args)
         auto ctl = args.once ? ioctl::PLUGIN_HARDWARE_ONCE : ioctl::PLUGIN_HARDWARE;
         constexpr auto outlen = offsetof_ex(ioctl::plugin_hardware, port) + sizeof(r.port);
 
-        if (DWORD BytesReturned{}; // must be set if the last arg is NULL
-            DeviceIoControl(dev, ctl, &r, sizeof(r), &r, outlen, &BytesReturned, nullptr)) {
+        DWORD BytesReturned{}; // must be set if the last arg is NULL
+        auto ok = DeviceIoControl(dev, ctl, &r, sizeof(r), &r, outlen, &BytesReturned, nullptr);
+        auto ioctl_err = GetLastError();
+        SecureZeroMemory(r.otp, sizeof(r.otp)); // Do not leave the one-time password on the stack
+        SetLastError(ioctl_err);
 
+        if (ok) {
                 if (BytesReturned != outlen) [[unlikely]] {
                         SetLastError(USBIP_ERROR_DRIVER_RESPONSE);
                         return 0;

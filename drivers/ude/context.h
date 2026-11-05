@@ -86,6 +86,8 @@ struct device_attributes
         //
         vhci::imported_device_config config; // for ioctl::get_imported_devices
         vhci::imported_device_hardware hw;
+
+        char otp[OTP_BUFSZ]; // From ioctl::plugin_hardware, zeroed as soon as OP_REQ_AUTH is sent
 };
 
 /*

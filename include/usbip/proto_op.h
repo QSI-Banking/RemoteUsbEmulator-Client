@@ -67,6 +67,20 @@ struct op_import_reply
         usbip_usb_device udev;
 };
 
+/*
+ * Follows op_common with code OP_REQ_AUTH:
+ *   UINT8 user_len, char user[user_len] (UTF-8), UINT8 otp_len, char otp[otp_len] (ASCII).
+ * Variable length, so it is built byte by byte; see send_req_auth.
+ */
+
+/*
+ * Follows op_common with code OP_REP_AUTH and status ST_OK.
+ */
+struct op_auth_reply
+{
+        char busid[BUS_ID_SIZE]; // of the device mapped to the user
+};
+
 struct op_devlist_request 
 {
         UINT32 _reserved; // struct or union must have at leat one member in MSC
@@ -101,6 +115,11 @@ enum : UINT16 // op_common.code
         OP_DEVLIST = 5,
         OP_REQ_DEVLIST = OP_REQUEST | OP_DEVLIST,
         OP_REP_DEVLIST = OP_REPLY | OP_DEVLIST,
+
+        // Authenticate with user name and one-time password, get the busid to import
+        OP_AUTH = 0x10,
+        OP_REQ_AUTH = OP_REQUEST | OP_AUTH,
+        OP_REP_AUTH = OP_REPLY | OP_AUTH,
 };
 
 inline void byteswap(usbip_usb_interface&) {} // nothing to do
@@ -110,6 +129,8 @@ void byteswap(op_common &c);
 
 inline void byteswap(op_import_request&) {} // nothing to do
 inline void byteswap(op_import_reply &r) { byteswap(r.udev); }
+
+inline void byteswap(op_auth_reply&) {} // nothing to do
 
 inline void byteswap(op_devlist_request&) {} // nothing to do
 void byteswap(op_devlist_reply &r);
