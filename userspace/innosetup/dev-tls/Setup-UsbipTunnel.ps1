@@ -61,28 +61,47 @@ function Write-Log([string]$Text) {
     Write-Host $line
 }
 
+# Returns the executable of a command line such as '"C:\Program Files\stunnel\uninstall.exe" /S', or $null.
+function Get-CommandExecutable([string]$Command) {
+    if (-not $Command) { return $null }
+    $c = $Command.Trim()
+    if ($c.StartsWith('"')) {
+        $end = $c.IndexOf('"', 1)
+        if ($end -gt 1) { return $c.Substring(1, $end - 1) }
+        return $null
+    }
+    $exe = $c.IndexOf('.exe', [StringComparison]::OrdinalIgnoreCase)
+    if ($exe -gt 0) { return $c.Substring(0, $exe + 4) }
+    return $c
+}
+
 function Find-Stunnel {
-    $candidates = New-Object System.Collections.Generic.List[string]
+    $dirs = New-Object System.Collections.Generic.List[string]
     foreach ($key in @(
             'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\stunnel',
             'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\stunnel')) {
         $item = Get-ItemProperty -Path $key -ErrorAction SilentlyContinue
-        if ($item) {
-            foreach ($name in 'InstallLocation', 'UninstallString') {
-                if ($item.PSObject.Properties[$name] -and $item.$name) {
-                    $dir = $item.$name.Trim('"')
-                    if ($name -eq 'UninstallString') { $dir = Split-Path -Parent $dir }
-                    $candidates.Add((Join-Path $dir 'bin\stunnel.exe'))
-                }
-            }
+        if (-not $item) { continue }
+        if ($item.PSObject.Properties['InstallLocation'] -and $item.InstallLocation) {
+            $dirs.Add($item.InstallLocation.Trim().Trim('"'))
+        }
+        if ($item.PSObject.Properties['UninstallString'] -and $item.UninstallString) {
+            $exe = Get-CommandExecutable $item.UninstallString
+            if ($exe) { $dirs.Add([System.IO.Path]::GetDirectoryName($exe)) }
         }
     }
-    $candidates.Add((Join-Path $env:ProgramFiles 'stunnel\bin\stunnel.exe'))
-    if (${env:ProgramFiles(x86)}) {
-        $candidates.Add((Join-Path ${env:ProgramFiles(x86)} 'stunnel\bin\stunnel.exe'))
-    }
-    foreach ($c in $candidates) {
-        if (Test-Path -LiteralPath $c) { return (Resolve-Path -LiteralPath $c).Path }
+    $dirs.Add((Join-Path $env:ProgramFiles 'stunnel'))
+    if (${env:ProgramFiles(x86)}) { $dirs.Add((Join-Path ${env:ProgramFiles(x86)} 'stunnel')) }
+
+    foreach ($dir in $dirs) {
+        try {
+            if (-not $dir) { continue }
+            $candidate = [System.IO.Path]::Combine($dir, 'bin', 'stunnel.exe')
+            if (Test-Path -LiteralPath $candidate) { return (Resolve-Path -LiteralPath $candidate).Path }
+        }
+        catch {
+            Write-Log "ignoring unusable stunnel location '$dir': $($_.Exception.Message)"
+        }
     }
     return $null
 }
@@ -280,9 +299,9 @@ try {
 
     if ($Role -eq 'Server') {
         Remove-NetFirewallRule -Name $FirewallRuleName -ErrorAction SilentlyContinue
+        # Port-only rule: a rule restricted to stunnel.exe did not match the stunnel service's traffic.
         New-NetFirewallRule -Name $FirewallRuleName -DisplayName 'USB/IP development TLS tunnel (stunnel)' `
-            -Direction Inbound -Protocol TCP -LocalPort $TunnelPort -Action Allow -Profile Any `
-            -Program $stunnel | Out-Null
+            -Direction Inbound -Protocol TCP -LocalPort $TunnelPort -Action Allow -Profile Any | Out-Null
         Write-Log "firewall: inbound TCP $TunnelPort allowed for stunnel"
     }
 

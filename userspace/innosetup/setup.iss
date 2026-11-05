@@ -113,6 +113,8 @@ AlwaysRestart=yes
 CloseApplications=yes
 CloseApplicationsFilter=*.exe,*.dll
 PrivilegesRequired=admin
+; usbip.exe is added to the system PATH; notify running programs of the change
+ChangesEnvironment=yes
 
 ; this app can't be installed more than once
 MissingRunOnceIdsWarning=no
@@ -163,6 +165,10 @@ Source: {#SolutionDir + "userspace\innosetup\dev-tls\*"}; DestDir: "{app}\dev-tl
 #if INSTALL_TEST_CERTIFICATE
   Source: {#CertFilePath}; DestDir: "{tmp}"; Components: main
 #endif
+
+[Registry]
+; Add the install folder to the system PATH so usbip.exe works from any console; removed again by RemoveFromPath on uninstall
+Root: HKLM64; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: NeedsAddPath('{app}'); Components: main
 
 [Tasks]
 Name: vcredist; Description: "Install Microsoft Visual C++ &Redistributable ({#VCRedistArch})"
@@ -505,6 +511,87 @@ begin
   DeleteOemDriverFromFileSearch(DriverName);
 end;
 
+const
+  EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
+
+function SamePathEntry(const A, B: String): Boolean;
+begin
+  Result := CompareText(RemoveBackslash(Trim(A)), RemoveBackslash(Trim(B))) = 0;
+end;
+
+// True if the directory is not yet in the system PATH
+function NeedsAddPath(Param: String): Boolean;
+var
+  Path, Rest, Item, Dir: String;
+  P: Integer;
+begin
+  Result := True;
+  Dir := ExpandConstant(Param);
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE_64, EnvironmentKey, 'Path', Path) then
+    Exit;
+  Rest := Path;
+  while Rest <> '' do
+  begin
+    P := Pos(';', Rest);
+    if P > 0 then
+    begin
+      Item := Copy(Rest, 1, P - 1);
+      Delete(Rest, 1, P);
+    end
+    else
+    begin
+      Item := Rest;
+      Rest := '';
+    end;
+    if SamePathEntry(Item, Dir) then
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
+end;
+
+// Removes every entry equal to Dir from the system PATH, keeping all other entries as they are
+procedure RemoveFromPath(const Dir: String);
+var
+  Path, Rest, Item, NewPath: String;
+  P: Integer;
+  Found: Boolean;
+begin
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE_64, EnvironmentKey, 'Path', Path) then
+    Exit;
+  Rest := Path;
+  NewPath := '';
+  Found := False;
+  while Rest <> '' do
+  begin
+    P := Pos(';', Rest);
+    if P > 0 then
+    begin
+      Item := Copy(Rest, 1, P - 1);
+      Delete(Rest, 1, P);
+    end
+    else
+    begin
+      Item := Rest;
+      Rest := '';
+    end;
+    if (Trim(Item) <> '') and SamePathEntry(Item, Dir) then
+      Found := True
+    else if Item <> '' then
+    begin
+      if NewPath <> '' then
+        NewPath := NewPath + ';';
+      NewPath := NewPath + Item;
+    end;
+  end;
+  if Found then
+  begin
+    Log('Removing ' + Dir + ' from the system PATH');
+    RegWriteExpandStringValue(HKEY_LOCAL_MACHINE_64, EnvironmentKey, 'Path', NewPath);
+  end;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then
@@ -514,6 +601,7 @@ begin
   end
   else if CurUninstallStep = usPostUninstall then
   begin
+    RemoveFromPath(ExpandConstant('{app}'));
     DeleteOemDriver('{#UdeDriver}');
     DeleteOemDriver('{#FilterDriver}');
   end;
