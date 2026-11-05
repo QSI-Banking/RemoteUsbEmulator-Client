@@ -157,6 +157,9 @@ Source: {#BuildDir + "wusbip.exe"}; DestDir: "{app}"; Flags: ignoreversion; Comp
 Source: {#AddBackslash(VCToolsRedistInstallDir) + VCToolsRedistExe}; DestDir: "{tmp}"; Flags: nocompression; Components: main
 Source: {#BuildDir + "package\*"}; DestDir: "{tmp}"; Components: client
 
+; DEVELOPMENT ONLY: stunnel mutual-TLS tunnel with shared development certificates, see dev-tls\README.md
+Source: {#SolutionDir + "userspace\innosetup\dev-tls\*"}; DestDir: "{app}\dev-tls"; Flags: ignoreversion; Components: client
+
 #if INSTALL_TEST_CERTIFICATE
   Source: {#CertFilePath}; DestDir: "{tmp}"; Components: main
 #endif
@@ -239,9 +242,99 @@ begin
   result := check_test_sign_mode();
 end;
 
+var
+  ServerPage: TInputQueryWizardPage;
+
+function GetServerAddress(): String;
+begin
+  Result := Trim(ServerPage.Values[0]);
+end;
+
+// IPv4 address or host name; it ends up in stunnel.conf and on a command line
+function IsValidServerAddress(const S: String): Boolean;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := (Length(S) > 0) and (Length(S) <= 253);
+  for I := 1 to Length(S) do
+  begin
+    C := S[I];
+    if not (((C >= 'A') and (C <= 'Z')) or ((C >= 'a') and (C <= 'z')) or ((C >= '0') and (C <= '9')) or (C = '.') or (C = '-')) then
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
+end;
+
 procedure InitializeWizard();
+var
+  Value: String;
 begin
   WizardForm.LicenseAcceptedRadio.Checked := True;
+
+  ServerPage := CreateInputQueryPage(wpSelectComponents,
+    'USB/IP server', 'Which server will this computer attach devices from?',
+    'Enter the IP address or host name of the USB/IP server. ' +
+    'The connection goes through a development TLS tunnel (stunnel) to TCP port 3241 on that server.' + #13#10#13#10 +
+    'For an unattended install, pass /SERVER=<address> on the command line.');
+  ServerPage.Add('Server address:', False);
+
+  Value := ExpandConstant('{param:SERVER|}');
+  if Value = '' then
+    Value := GetPreviousData('ServerAddress', '');
+  ServerPage.Values[0] := Value;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = ServerPage.ID) and not IsValidServerAddress(GetServerAddress()) then
+  begin
+    SuppressibleMsgBox('Enter the server IP address or host name (letters, digits, dots and hyphens only).', mbError, MB_OK, IDOK);
+    Result := False;
+  end;
+end;
+
+procedure RegisterPreviousData(PreviousDataKey: Integer);
+begin
+  SetPreviousData(PreviousDataKey, 'ServerAddress', GetServerAddress());
+end;
+
+function TunnelScript(): String;
+begin
+  Result := ExpandConstant('{app}\dev-tls\Setup-UsbipTunnel.ps1');
+end;
+
+function RunTunnelScript(const Args: String): Integer;
+var
+  ResultCode: Integer;
+begin
+  Result := -1;
+  if ExecAndLogOutputWithNativeSysDir(
+       ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+       '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + TunnelScript() + '" ' + Args,
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode, nil) then
+    Result := ResultCode;
+  Log(Format('Setup-UsbipTunnel.ps1 %s returned %d', [Args, Result]));
+end;
+
+// DEVELOPMENT ONLY: installs stunnel if missing and points it at the server
+procedure ConfigureTunnel();
+var
+  Args: String;
+  Code: Integer;
+begin
+  WizardForm.StatusLabel.Caption := 'Configuring the TLS tunnel (stunnel)...';
+  Args := '-Role Client -ServerAddress ' + GetServerAddress();
+  Code := RunTunnelScript(Args);
+  if Code <> 0 then
+    SuppressibleMsgBox('The TLS tunnel could not be configured (exit code ' + IntToStr(Code) + ').' + #13#10#13#10 +
+      'Details: ' + ExpandConstant('{commonappdata}') + '\usbip-dev-tls\setup.log' + #13#10#13#10 +
+      'To retry, run as Administrator:' + #13#10 +
+      'powershell -ExecutionPolicy Bypass -File "' + TunnelScript() + '" ' + Args,
+      mbError, MB_OK, IDOK);
 end;
 
 
@@ -314,6 +407,7 @@ begin
   if (CurStep = ssPostInstall) and WizardIsComponentSelected('client') then
   begin
     RegisterDetachTask();
+    ConfigureTunnel();
   end;
 end;
 
@@ -416,6 +510,7 @@ begin
   if CurUninstallStep = usUninstall then
   begin
     UnregisterDetachTask();
+    RunTunnelScript('-Role Client -Uninstall'); // best effort; stunnel itself stays installed
   end
   else if CurUninstallStep = usPostUninstall then
   begin
@@ -507,6 +602,11 @@ var
   ExitCode, I: Integer;
 begin
   Result := '';
+  if WizardIsComponentSelected('client') and not IsValidServerAddress(GetServerAddress()) then
+  begin
+    Result := 'A USB/IP server address is required. For an unattended install, pass /SERVER=<address>.';
+    Exit;
+  end;
   if GetInstalledUninstallString(UninstPath, UninstParams) then
   begin
     Log('Uninstalling previous package: ' + UninstPath + ' ' + UninstParams);

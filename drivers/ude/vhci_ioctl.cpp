@@ -7,6 +7,7 @@
 #include "vhci_ioctl.tmh"
 
 #include "context.h"
+#include "driver.h"
 #include "vhci.h"
 #include "device.h"
 #include "network.h"
