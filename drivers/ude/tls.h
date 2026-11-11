@@ -13,7 +13,7 @@
 /*
  * Mutual TLS between the driver and usbipd-win, terminated in the kernel with Schannel.
  *
- * Settings come from the admin-only key HKLM\SOFTWARE\USBip\Connection (see tls.cpp),
+ * Settings come from the admin-only Parameters key of the driver service (see tls.cpp),
  * so an unprivileged caller of the VHCI device cannot choose where the driver connects.
  *
  * Schannel calls must be made at PASSIVE_LEVEL, but the driver's data path runs at DISPATCH_LEVEL.
@@ -37,7 +37,7 @@ namespace usbip::tls
 struct session;
 
 /*
- * Reads the server host and TCP port from HKLM\SOFTWARE\USBip\Connection.
+ * Reads the server host and TCP port from the Parameters key of the driver service.
  */
 _IRQL_requires_same_
 _IRQL_requires_(PASSIVE_LEVEL)

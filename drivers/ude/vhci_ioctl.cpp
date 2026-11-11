@@ -896,7 +896,7 @@ PAGED NTSTATUS stop_attach_attempts(_In_ WDFREQUEST request)
 
 /*
  * Every attach must authenticate, goes only to the server configured by an administrator
- * (HKLM\SOFTWARE\USBip\Connection, see tls.cpp) over mutual TLS, and is never retried automatically.
+ * (the driver's Parameters key, see tls.cpp) over mutual TLS, and is never retried automatically.
  * Enforced here, not only in usbip.exe, because any local process can send this IOCTL (see Security Note above).
  */
 _IRQL_requires_same_

@@ -159,9 +159,6 @@ Source: {#BuildDir + "wusbip.exe"}; DestDir: "{app}"; Flags: ignoreversion; Comp
 Source: {#AddBackslash(VCToolsRedistInstallDir) + VCToolsRedistExe}; DestDir: "{tmp}"; Flags: nocompression; Components: main
 Source: {#BuildDir + "package\*"}; DestDir: "{tmp}"; Components: client
 
-; DEVELOPMENT ONLY: stunnel mutual-TLS tunnel with shared development certificates, see dev-tls\README.md
-Source: {#SolutionDir + "userspace\innosetup\dev-tls\*"}; DestDir: "{app}\dev-tls"; Flags: ignoreversion; Components: client
-
 #if INSTALL_TEST_CERTIFICATE
   Source: {#CertFilePath}; DestDir: "{tmp}"; Components: main
 #endif
@@ -248,16 +245,98 @@ begin
   result := check_test_sign_mode();
 end;
 
+const
+  // The usbip2_ude driver reads its connection settings from here (drivers\ude\tls.cpp)
+  DriverParamsKey = 'SYSTEM\CurrentControlSet\Services\{#UdeDriver}\Parameters';
+  LegacyConnectionKey = 'SOFTWARE\USBip\Connection'; // used by early development builds
+  DefaultTlsPort = 3241;
+
+  CERT_STORE_PROV_SYSTEM_W = 10;
+  CERT_SYSTEM_STORE_LOCAL_MACHINE = $00020000;
+  CERT_STORE_READONLY_FLAG = $00008000;
+  CERT_STORE_OPEN_EXISTING_FLAG = $00004000;
+  CERT_NAME_SIMPLE_DISPLAY_TYPE = 4;
+  CERT_NAME_ISSUER_FLAG = 1;
+  CERT_KEY_PROV_INFO_PROP_ID = 2;
+  CERT_SHA1_HASH_PROP_ID = 3;
+
+function CertOpenStore(Provider: NativeUInt; Encoding: Cardinal; Prov: NativeUInt; Flags: Cardinal; Para: String): NativeUInt;
+  external 'CertOpenStore@crypt32.dll stdcall';
+function CertCloseStore(Store: NativeUInt; Flags: Cardinal): Boolean;
+  external 'CertCloseStore@crypt32.dll stdcall';
+function CertEnumCertificatesInStore(Store: NativeUInt; Prev: NativeUInt): NativeUInt;
+  external 'CertEnumCertificatesInStore@crypt32.dll stdcall';
+function CertGetNameString(Ctx: NativeUInt; NameType: Cardinal; Flags: Cardinal; TypePara: NativeUInt; Name: String; Size: Cardinal): Cardinal;
+  external 'CertGetNameStringW@crypt32.dll stdcall';
+function CertGetPropertyData(Ctx: NativeUInt; PropId: Cardinal; Data: AnsiString; var Size: Cardinal): Boolean;
+  external 'CertGetCertificateContextProperty@crypt32.dll stdcall';
+function CertGetPropertySize(Ctx: NativeUInt; PropId: Cardinal; Data: NativeUInt; var Size: Cardinal): Boolean;
+  external 'CertGetCertificateContextProperty@crypt32.dll stdcall';
+
+type
+  TClientCert = record
+    Thumbprint: String;
+    Caption: String;
+  end;
+
 var
   ServerPage: TInputQueryWizardPage;
+  CertPage: TWizardPage;
+  CertList: TNewListBox;
+  CertInfo: TNewStaticText;
+  Certs: array of TClientCert;
+  InitialThumbprint: String;
 
 function GetServerAddress(): String;
 begin
   Result := Trim(ServerPage.Values[0]);
 end;
 
-// IPv4 address or host name; it ends up in stunnel.conf and on a command line
-function IsValidServerAddress(const S: String): Boolean;
+function GetPort(): Integer;
+begin
+  Result := StrToIntDef(Trim(ServerPage.Values[1]), 0);
+end;
+
+function GetServerName(): String;
+begin
+  Result := Trim(ServerPage.Values[2]);
+end;
+
+// Keeps hex digits only, upper case; spaces, colons and the invisible marks the certificate dialog copies are dropped
+function NormalizeHex(const S: String): String;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := '';
+  for I := 1 to Length(S) do
+  begin
+    C := S[I];
+    if ((C >= '0') and (C <= '9')) or ((C >= 'a') and (C <= 'f')) or ((C >= 'A') and (C <= 'F')) then
+      Result := Result + Uppercase(C)
+    else if not ((C = ' ') or (C = ':') or (C = #9) or (Ord(C) = $200E) or (Ord(C) = $200F) or (Ord(C) = $FEFF)) then
+    begin
+      Result := '?'; // invalid character
+      Exit;
+    end;
+  end;
+end;
+
+function GetServerPin(): String;
+begin
+  Result := NormalizeHex(ServerPage.Values[3]);
+end;
+
+function GetClientThumbprint(): String;
+begin
+  if (CertList <> nil) and (CertList.ItemIndex >= 0) and (CertList.ItemIndex < GetArrayLength(Certs)) then
+    Result := Certs[CertList.ItemIndex].Thumbprint
+  else
+    Result := NormalizeHex(InitialThumbprint);
+end;
+
+// IPv4 address or DNS name
+function IsValidHostName(const S: String): Boolean;
 var
   I: Integer;
   C: Char;
@@ -274,31 +353,178 @@ begin
   end;
 end;
 
-procedure InitializeWizard();
+function HexOf(const Data: AnsiString): String;
 var
-  Value: String;
+  I: Integer;
 begin
-  WizardForm.LicenseAcceptedRadio.Checked := True;
+  Result := '';
+  for I := 1 to Length(Data) do
+    Result := Result + Format('%.2X', [Ord(Data[I])]);
+end;
 
+function CertName(Ctx: NativeUInt; Flags: Cardinal): String;
+var
+  Buf: String;
+  Len: Cardinal;
+begin
+  Buf := StringOfChar(#0, 512);
+  Len := CertGetNameString(Ctx, CERT_NAME_SIMPLE_DISPLAY_TYPE, Flags, 0, Buf, 512);
+  if Len > 1 then
+    Result := Copy(Buf, 1, Len - 1)
+  else
+    Result := '';
+end;
+
+// Certificates in LocalMachine\My that have a private key
+procedure LoadClientCertificates();
+var
+  Store, Ctx: NativeUInt;
+  Size: Cardinal;
+  Hash: AnsiString;
+  N: Integer;
+begin
+  SetArrayLength(Certs, 0);
+
+  Store := CertOpenStore(CERT_STORE_PROV_SYSTEM_W, 0, 0,
+    CERT_SYSTEM_STORE_LOCAL_MACHINE or CERT_STORE_READONLY_FLAG or CERT_STORE_OPEN_EXISTING_FLAG, 'MY');
+  if Store = 0 then
+  begin
+    Log('CertOpenStore(LocalMachine\My) failed');
+    Exit;
+  end;
+
+  Ctx := CertEnumCertificatesInStore(Store, 0);
+  while Ctx <> 0 do
+  begin
+    Size := 0;
+    if CertGetPropertySize(Ctx, CERT_KEY_PROV_INFO_PROP_ID, 0, Size) then
+    begin
+      SetLength(Hash, 20);
+      Size := 20;
+      if CertGetPropertyData(Ctx, CERT_SHA1_HASH_PROP_ID, Hash, Size) and (Size = 20) then
+      begin
+        N := GetArrayLength(Certs);
+        SetArrayLength(Certs, N + 1);
+        Certs[N].Thumbprint := HexOf(Hash);
+        Certs[N].Caption := CertName(Ctx, 0) + '  -  issued by ' + CertName(Ctx, CERT_NAME_ISSUER_FLAG) + '  -  ' + Certs[N].Thumbprint;
+      end;
+    end;
+    Ctx := CertEnumCertificatesInStore(Store, Ctx); // frees the previous context
+  end;
+
+  CertCloseStore(Store, 0);
+  Log(Format('%d certificate(s) with a private key in LocalMachine\My', [GetArrayLength(Certs)]));
+end;
+
+// Value from the command line, else from the previous install, else Default
+function InitialValue(const Param, PrevName, Default: String): String;
+begin
+  Result := ExpandConstant('{param:' + Param + '|}');
+  if Result = '' then
+    Result := GetPreviousData(PrevName, Default);
+end;
+
+procedure CreateConnectionPages();
+var
+  I: Integer;
+begin
   ServerPage := CreateInputQueryPage(wpSelectComponents,
     'USB/IP server', 'Which server will this computer attach devices from?',
-    'Enter the IP address or host name of the USB/IP server. ' +
-    'The connection goes through a development TLS tunnel (stunnel) to TCP port 3241 on that server.' + #13#10#13#10 +
-    'For an unattended install, pass /SERVER=<address> on the command line.');
-  ServerPage.Add('Server address:', False);
+    'The connection uses mutual TLS directly to usbipd on the server. ' +
+    'The server certificate must chain to a root in this computer''s Trusted Root Certification Authorities store ' +
+    'and contain the server certificate name below.' + #13#10#13#10 +
+    'Unattended install: /SERVER= /PORT= /SERVERNAME= /SERVERPIN= /CLIENTCERT=');
+  ServerPage.Add('Server address (IP address or host name):', False);
+  ServerPage.Add('TLS port:', False);
+  ServerPage.Add('Server certificate name (DNS name in the server certificate):', False);
+  ServerPage.Add('Server certificate SHA-256 (optional pin):', False);
 
-  Value := ExpandConstant('{param:SERVER|}');
-  if Value = '' then
-    Value := GetPreviousData('ServerAddress', '');
-  ServerPage.Values[0] := Value;
+  ServerPage.Values[0] := InitialValue('SERVER', 'ServerAddress', '');
+  ServerPage.Values[1] := InitialValue('PORT', 'TlsPort', IntToStr(DefaultTlsPort));
+  ServerPage.Values[2] := InitialValue('SERVERNAME', 'ServerName', '');
+  ServerPage.Values[3] := InitialValue('SERVERPIN', 'ServerPin', '');
+  InitialThumbprint := InitialValue('CLIENTCERT', 'ClientCert', '');
+
+  CertPage := CreateCustomPage(ServerPage.ID, 'Client certificate',
+    'Which certificate identifies this computer to the server?');
+
+  CertInfo := TNewStaticText.Create(CertPage);
+  CertInfo.Parent := CertPage.Surface;
+  CertInfo.AutoSize := False;
+  CertInfo.WordWrap := True;
+  CertInfo.Width := CertPage.SurfaceWidth;
+  CertInfo.Height := ScaleY(40);
+
+  CertList := TNewListBox.Create(CertPage);
+  CertList.Parent := CertPage.Surface;
+  CertList.Top := CertInfo.Top + CertInfo.Height + ScaleY(8);
+  CertList.Width := CertPage.SurfaceWidth;
+  CertList.Height := CertPage.SurfaceHeight - CertList.Top;
+
+  LoadClientCertificates();
+  for I := 0 to GetArrayLength(Certs) - 1 do
+  begin
+    CertList.Items.Add(Certs[I].Caption);
+    if Certs[I].Thumbprint = NormalizeHex(InitialThumbprint) then
+      CertList.ItemIndex := I;
+  end;
+  if (CertList.ItemIndex < 0) and (GetArrayLength(Certs) = 1) then
+    CertList.ItemIndex := 0;
+
+  if GetArrayLength(Certs) = 0 then
+    CertInfo.Caption := 'No certificate with a private key was found in the Local Computer\Personal store. ' +
+      'Import this computer''s client certificate there (for example certutil -importpfx), then run Setup again.'
+  else
+    CertInfo.Caption := 'Certificates with a private key in the Local Computer\Personal store. ' +
+      'Choose the one issued to this computer for client authentication.';
+end;
+
+// Empty if the settings are valid, else what is wrong
+function ValidateConnectionSettings(): String;
+var
+  Pin, Thumb: String;
+begin
+  Result := '';
+  Pin := GetServerPin();
+  Thumb := GetClientThumbprint();
+
+  if not IsValidHostName(GetServerAddress()) then
+    Result := 'Enter the server IP address or host name (letters, digits, dots and hyphens only).'
+  else if (GetPort() < 1) or (GetPort() > 65535) then
+    Result := 'Enter a TLS port between 1 and 65535.'
+  else if not IsValidHostName(GetServerName()) then
+    Result := 'Enter the server certificate name, the DNS name in the server certificate (for example usbip-server.corp.local).'
+  else if (Pin <> '') and (Length(Pin) <> 64) then
+    Result := 'The server certificate SHA-256 must be 64 hex digits, or empty.'
+  else if Length(Thumb) <> 40 then
+    Result := 'Choose the client certificate (or pass /CLIENTCERT=<SHA-1 thumbprint> for an unattended install).';
+end;
+
+procedure InitializeWizard();
+begin
+  WizardForm.LicenseAcceptedRadio.Checked := True;
+  CreateConnectionPages();
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Msg: String;
 begin
   Result := True;
-  if (CurPageID = ServerPage.ID) and not IsValidServerAddress(GetServerAddress()) then
+  Msg := '';
+
+  if CurPageID = ServerPage.ID then
   begin
-    SuppressibleMsgBox('Enter the server IP address or host name (letters, digits, dots and hyphens only).', mbError, MB_OK, IDOK);
+    Msg := ValidateConnectionSettings();
+    if Pos('client certificate', Msg) > 0 then
+      Msg := ''; // chosen on the next page
+  end
+  else if CurPageID = CertPage.ID then
+    Msg := ValidateConnectionSettings();
+
+  if Msg <> '' then
+  begin
+    SuppressibleMsgBox(Msg, mbError, MB_OK, IDOK);
     Result := False;
   end;
 end;
@@ -306,41 +532,42 @@ end;
 procedure RegisterPreviousData(PreviousDataKey: Integer);
 begin
   SetPreviousData(PreviousDataKey, 'ServerAddress', GetServerAddress());
+  SetPreviousData(PreviousDataKey, 'TlsPort', IntToStr(GetPort()));
+  SetPreviousData(PreviousDataKey, 'ServerName', GetServerName());
+  SetPreviousData(PreviousDataKey, 'ServerPin', GetServerPin());
+  SetPreviousData(PreviousDataKey, 'ClientCert', GetClientThumbprint());
 end;
 
-function TunnelScript(): String;
-begin
-  Result := ExpandConstant('{app}\dev-tls\Setup-UsbipTunnel.ps1');
-end;
-
-function RunTunnelScript(const Args: String): Integer;
+procedure WriteConnectionSettings();
 var
-  ResultCode: Integer;
+  Pin: String;
 begin
-  Result := -1;
-  if ExecAndLogOutputWithNativeSysDir(
-       ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-       '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + TunnelScript() + '" ' + Args,
-       '', SW_HIDE, ewWaitUntilTerminated, ResultCode, nil) then
-    Result := ResultCode;
-  Log(Format('Setup-UsbipTunnel.ps1 %s returned %d', [Args, Result]));
+  // a [Code] line must not start with '[', Inno Setup would read it as a section tag
+  Log(Format('Connection: %s:%d, server name %s, client certificate %s', [GetServerAddress(), GetPort(), GetServerName(), GetClientThumbprint()]));
+
+  RegWriteStringValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'Host', GetServerAddress());
+  RegWriteDWordValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'Port', GetPort());
+  RegWriteStringValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'ServerName', GetServerName());
+  RegWriteStringValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'ClientCertificateThumbprint', GetClientThumbprint());
+
+  Pin := GetServerPin();
+  if Pin <> '' then
+    RegWriteStringValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'ServerCertificateSha256', Pin)
+  else
+    RegDeleteValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'ServerCertificateSha256');
+
+  if RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE_64, LegacyConnectionKey) then
+    Log('Removed the legacy key HKLM\' + LegacyConnectionKey);
+  RegDeleteKeyIfEmpty(HKEY_LOCAL_MACHINE_64, 'SOFTWARE\USBip');
 end;
 
-// DEVELOPMENT ONLY: installs stunnel if missing and points it at the server
-procedure ConfigureTunnel();
-var
-  Args: String;
-  Code: Integer;
+procedure RemoveConnectionSettings();
 begin
-  WizardForm.StatusLabel.Caption := 'Configuring the TLS tunnel (stunnel)...';
-  Args := '-Role Client -ServerAddress ' + GetServerAddress();
-  Code := RunTunnelScript(Args);
-  if Code <> 0 then
-    SuppressibleMsgBox('The TLS tunnel could not be configured (exit code ' + IntToStr(Code) + ').' + #13#10#13#10 +
-      'Details: ' + ExpandConstant('{commonappdata}') + '\usbip-dev-tls\setup.log' + #13#10#13#10 +
-      'To retry, run as Administrator:' + #13#10 +
-      'powershell -ExecutionPolicy Bypass -File "' + TunnelScript() + '" ' + Args,
-      mbError, MB_OK, IDOK);
+  RegDeleteValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'Host');
+  RegDeleteValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'Port');
+  RegDeleteValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'ServerName');
+  RegDeleteValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'ClientCertificateThumbprint');
+  RegDeleteValue(HKEY_LOCAL_MACHINE_64, DriverParamsKey, 'ServerCertificateSha256');
 end;
 
 
@@ -413,7 +640,7 @@ begin
   if (CurStep = ssPostInstall) and WizardIsComponentSelected('client') then
   begin
     RegisterDetachTask();
-    ConfigureTunnel();
+    WriteConnectionSettings();
   end;
 end;
 
@@ -597,7 +824,7 @@ begin
   if CurUninstallStep = usUninstall then
   begin
     UnregisterDetachTask();
-    RunTunnelScript('-Role Client -Uninstall'); // best effort; stunnel itself stays installed
+    RemoveConnectionSettings();
   end
   else if CurUninstallStep = usPostUninstall then
   begin
@@ -690,10 +917,11 @@ var
   ExitCode, I: Integer;
 begin
   Result := '';
-  if WizardIsComponentSelected('client') and not IsValidServerAddress(GetServerAddress()) then
+  if WizardIsComponentSelected('client') then // also checks unattended installs, where the pages are not shown
   begin
-    Result := 'A USB/IP server address is required. For an unattended install, pass /SERVER=<address>.';
-    Exit;
+    Result := ValidateConnectionSettings();
+    if Result <> '' then
+      Exit;
   end;
   if GetInstalledUninstallString(UninstPath, UninstParams) then
   begin

@@ -20,7 +20,7 @@ using namespace usbip;
 
 /*
  * Placeholders: the driver ignores them and connects over mutual TLS to the server
- * configured by an administrator in HKLM\SOFTWARE\USBip\Connection.
+ * configured by the client installer (Parameters key of the usbip2_ude service).
  */
 constexpr auto &server_host = "configured";
 constexpr auto &server_port = "0";

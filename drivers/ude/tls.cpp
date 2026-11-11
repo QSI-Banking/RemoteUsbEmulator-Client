@@ -1,7 +1,8 @@
 /*
  * Mutual TLS for the connection to usbipd-win, see tls.h.
  *
- * Settings, HKLM\SOFTWARE\USBip\Connection (writable by administrators only):
+ * Settings, the driver's Parameters key HKLM\SYSTEM\CurrentControlSet\Services\usbip2_ude\Parameters
+ * (writable by administrators only, written by the client installer):
  *   Host                        REG_SZ     server name or IP address, required
  *   Port                        REG_DWORD  TLS port of usbipd-win, default 3241
  *   ServerName                  REG_SZ     name that must be in the server certificate (SAN/CN), required
@@ -21,6 +22,7 @@
 #include "device.h"
 #include "device_ioctl.h"
 #include "network.h"
+#include "persistent.h"
 #include "ring_buffer.h"
 #include "wsk_context.h"
 #include "wsk_receive_events.h"
@@ -111,7 +113,8 @@ constexpr ULONG pin_size = 32; // SHA-256
 
 constexpr auto default_port = 3241UL;
 
-const UNICODE_STRING settings_key = RTL_CONSTANT_STRING(L"\\Registry\\Machine\\SOFTWARE\\USBip\\Connection");
+// for messages only, the key is opened with DriverRegKeyParameters
+const UNICODE_STRING settings_key = RTL_CONSTANT_STRING(L"HKLM\\SYSTEM\\CurrentControlSet\\Services\\usbip2_ude\\Parameters");
 
 class event_lock
 {
@@ -357,15 +360,13 @@ PAGED auto parse_hex(_In_ const UNICODE_STRING &str, _Out_writes_bytes_(size) UC
 
 _IRQL_requires_same_
 _IRQL_requires_(PASSIVE_LEVEL)
-PAGED auto open_settings(_Out_ WDFKEY &key)
+PAGED auto open_settings(_Inout_ registry &key)
 {
         PAGED_CODE();
 
-        auto st = WdfRegistryOpenKey(nullptr, &settings_key, KEY_READ, WDF_NO_OBJECT_ATTRIBUTES, &key);
+        auto st = usbip::open(key, DriverRegKeyParameters);
         if (NT_ERROR(st)) {
-                key = nullptr;
-                Trace(TRACE_LEVEL_ERROR, "Cannot open %!USTR!, %!STATUS!. Run the client installer again or create it.",
-                                          &settings_key, st);
+                Trace(TRACE_LEVEL_ERROR, "Cannot open %!USTR!, %!STATUS!. Run the client installer again.", &settings_key, st);
         }
         return st;
 }
@@ -411,7 +412,7 @@ PAGED NTSTATUS read_settings(_Out_ settings &cfg)
         PAGED_CODE();
         RtlZeroMemory(&cfg, sizeof(cfg));
 
-        WDFKEY key;
+        registry key;
         if (auto st = open_settings(key); NT_ERROR(st)) {
                 return STATUS_DEVICE_CONFIGURATION_ERROR;
         }
@@ -421,7 +422,7 @@ PAGED NTSTATUS read_settings(_Out_ settings &cfg)
         cfg.server_name.Buffer = cfg.server_name_buf;
         cfg.server_name.MaximumLength = sizeof(cfg.server_name_buf) - sizeof(WCHAR);
 
-        if (NT_ERROR(query_string(key, L"ServerName", cfg.server_name)) || !cfg.server_name.Length) {
+        if (NT_ERROR(query_string(key.get(), L"ServerName", cfg.server_name)) || !cfg.server_name.Length) {
                 Trace(TRACE_LEVEL_ERROR, "%!USTR!\\ServerName is required", &settings_key);
                 st = STATUS_DEVICE_CONFIGURATION_ERROR;
         }
@@ -430,7 +431,7 @@ PAGED NTSTATUS read_settings(_Out_ settings &cfg)
         UNICODE_STRING str{ .MaximumLength = sizeof(buf), .Buffer = buf };
 
         if (NT_SUCCESS(st)) {
-                if (NT_ERROR(query_string(key, L"ClientCertificateThumbprint", str)) ||
+                if (NT_ERROR(query_string(key.get(), L"ClientCertificateThumbprint", str)) ||
                     !parse_hex(str, cfg.client_thumbprint, sizeof(cfg.client_thumbprint))) {
                         Trace(TRACE_LEVEL_ERROR, "%!USTR!\\ClientCertificateThumbprint must be 40 hex digits", &settings_key);
                         st = STATUS_DEVICE_CONFIGURATION_ERROR;
@@ -438,7 +439,7 @@ PAGED NTSTATUS read_settings(_Out_ settings &cfg)
         }
 
         if (NT_SUCCESS(st)) {
-                if (NT_ERROR(query_string(key, L"ServerCertificateSha256", str)) || !str.Length) {
+                if (NT_ERROR(query_string(key.get(), L"ServerCertificateSha256", str)) || !str.Length) {
                         cfg.has_pin = false; // optional
                 } else if (parse_hex(str, cfg.server_pin, sizeof(cfg.server_pin))) {
                         cfg.has_pin = true;
@@ -448,7 +449,6 @@ PAGED NTSTATUS read_settings(_Out_ settings &cfg)
                 }
         }
 
-        WdfRegistryClose(key);
         return st;
 }
 
@@ -1217,7 +1217,7 @@ PAGED NTSTATUS usbip::tls::get_server_location(
                 *service = '\0';
         }
 
-        WDFKEY key;
+        registry key;
         if (auto st = open_settings(key); NT_ERROR(st)) {
                 return STATUS_DEVICE_CONFIGURATION_ERROR;
         }
@@ -1225,7 +1225,7 @@ PAGED NTSTATUS usbip::tls::get_server_location(
         WCHAR buf[256];
         UNICODE_STRING name{ .MaximumLength = sizeof(buf), .Buffer = buf };
 
-        auto st = query_string(key, L"Host", name);
+        auto st = query_string(key.get(), L"Host", name);
         if (NT_ERROR(st) || !name.Length) {
                 Trace(TRACE_LEVEL_ERROR, "%!USTR!\\Host is required", &settings_key);
                 st = STATUS_DEVICE_CONFIGURATION_ERROR;
@@ -1238,7 +1238,7 @@ PAGED NTSTATUS usbip::tls::get_server_location(
         if (NT_SUCCESS(st)) {
                 UNICODE_STRING port_name = RTL_CONSTANT_STRING(L"Port");
 
-                if (auto err = WdfRegistryQueryULong(key, &port_name, &port); err == STATUS_OBJECT_NAME_NOT_FOUND) {
+                if (auto err = WdfRegistryQueryULong(key.get(), &port_name, &port); err == STATUS_OBJECT_NAME_NOT_FOUND) {
                         port = default_port;
                 } else if (NT_ERROR(err)) {
                         Trace(TRACE_LEVEL_ERROR, "%!USTR!\\Port must be a REG_DWORD, %!STATUS!", &settings_key, err);
@@ -1255,7 +1255,6 @@ PAGED NTSTATUS usbip::tls::get_server_location(
                 st = RtlStringCbPrintfA(service, service_size, "%lu", port);
         }
 
-        WdfRegistryClose(key);
 
         if (NT_SUCCESS(st)) {
                 Trace(TRACE_LEVEL_INFORMATION, "server %s:%s", host, service);
