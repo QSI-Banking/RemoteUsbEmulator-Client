@@ -43,6 +43,7 @@
     <ClCompile Include="wsk_receive.cpp" />
     <ClCompile Include="wsk_receive_events.cpp" />
     <ClCompile Include="wsk_receive_irp.cpp" />
+    <ClCompile Include="tls.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\usbip\ch9.h" />
@@ -71,6 +72,7 @@
     <ClInclude Include="wsk_receive.h" />
     <ClInclude Include="wsk_receive_events.h" />
     <ClInclude Include="wsk_receive_irp.h" />
+    <ClInclude Include="tls.h" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="usbip2_ude.inf" />
@@ -211,7 +213,7 @@
       <FileDigestAlgorithm>certHash</FileDigestAlgorithm>
     </DriverSign>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ntstrsafe.lib;wdmsec.lib;netio.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);ntstrsafe.lib;wdmsec.lib;netio.lib;ksecdd.lib</AdditionalDependencies>
       <AdditionalOptions>/PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
@@ -232,7 +234,7 @@
       <FileDigestAlgorithm>certHash</FileDigestAlgorithm>
     </DriverSign>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ntstrsafe.lib;wdmsec.lib;netio.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);ntstrsafe.lib;wdmsec.lib;netio.lib;ksecdd.lib</AdditionalDependencies>
       <AdditionalOptions>/PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
@@ -253,7 +255,7 @@
       <FileDigestAlgorithm>certHash</FileDigestAlgorithm>
     </DriverSign>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ntstrsafe.lib;wdmsec.lib;netio.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);ntstrsafe.lib;wdmsec.lib;netio.lib;ksecdd.lib</AdditionalDependencies>
       <AdditionalOptions>/PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
@@ -274,7 +276,7 @@
       <FileDigestAlgorithm>certHash</FileDigestAlgorithm>
     </DriverSign>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ntstrsafe.lib;wdmsec.lib;netio.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);ntstrsafe.lib;wdmsec.lib;netio.lib;ksecdd.lib</AdditionalDependencies>
       <AdditionalOptions>/PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>

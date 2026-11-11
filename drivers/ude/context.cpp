@@ -8,6 +8,7 @@
 
 #include "driver.h"
 #include "persistent.h"
+#include "tls.h"
 
 #include <libdrv/strconv.h>
 #include <libdrv/wsk_cpp.h>
@@ -65,6 +66,7 @@ void destroy_device_ctx_ext(_In_ WDFOBJECT object)
 
         Trace(TRACE_LEVEL_INFORMATION, "%!USTR!:%!USTR!/%!USTR!", ext.node_name(), ext.service_name(), ext.busid());
 
+        tls::free(ext.tls);
         free(ext.sock);
         free(ext.attr);
 }

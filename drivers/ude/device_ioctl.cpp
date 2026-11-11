@@ -16,6 +16,7 @@
 #include "ioctl.h"
 
 #include "filter_request.h"
+#include "tls.h"
 #include <ude_filter/request.h>
 
 #include <libdrv/irp.h>
@@ -132,6 +133,11 @@ _IRQL_requires_same_
 _IRQL_requires_max_(DISPATCH_LEVEL)
 void send_pending(_Inout_ device_ctx &dev)
 {
+        if (auto s = dev.ext().tls) {
+                tls::queue_send(dev, *s); // Schannel needs PASSIVE_LEVEL, the TLS send thread sends
+                return;
+        }
+
         if (InterlockedExchange(&dev.sending, true)) {
                 return; // the other thread won the race
         }
@@ -718,4 +724,16 @@ void NTAPI usbip::device::internal_control(
                 }
                 device::enqueue_for_completion(request, st);
         }
+}
+
+_IRQL_requires_same_
+_IRQL_requires_max_(DISPATCH_LEVEL)
+void usbip::device::complete_send(_Inout_ wsk_context &ctx, _In_ NTSTATUS status)
+{
+        auto irp = ctx.wsk_irp.get();
+
+        irp->IoStatus.Status = status;
+        irp->IoStatus.Information = 0;
+
+        send_complete(nullptr, irp, &ctx); // takes ownership of ctx
 }

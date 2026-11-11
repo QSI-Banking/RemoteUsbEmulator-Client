@@ -30,6 +30,7 @@
     <ClInclude Include="urbtransfer.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="wsk_receive_irp.h" />
+    <ClInclude Include="tls.h" />
     <ClInclude Include="device_ioctl.h" />
     <ClInclude Include="wsk_context.h" />
     <ClInclude Include="request_list.h" />
@@ -54,6 +55,7 @@
     <ClCompile Include="urbtransfer.cpp" />
     <ClCompile Include="context.cpp" />
     <ClCompile Include="wsk_receive_irp.cpp" />
+    <ClCompile Include="tls.cpp" />
     <ClCompile Include="device_ioctl.cpp" />
     <ClCompile Include="wsk_context.cpp" />
     <ClCompile Include="request_list.cpp" />

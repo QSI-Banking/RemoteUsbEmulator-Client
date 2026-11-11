@@ -76,6 +76,8 @@ bool is_valid_port(_In_ const vhci_ctx &ctx, _In_ int port);
 struct device_ctx;
 struct ring_buffer_data;
 
+namespace tls { struct session; }
+
 struct device_attributes
 {
         // from ioctl::plugin_hardware, .Buffer-s are allocated in PagedPool
@@ -106,6 +108,7 @@ struct device_ctx_ext
 {
         device_ctx *ctx;
         wsk::SOCKET *sock;
+        tls::session *tls; // mutual TLS session on sock, see tls.h
 
         device_attributes attr;
 

@@ -10,8 +10,20 @@
 #include <wdfusb.h>
 #include <UdeCx.h>
 
+namespace usbip
+{
+struct wsk_context;
+} // namespace usbip
+
 namespace usbip::device
 {
+
+/*
+ * Runs the regular WskSend completion for a send done by the TLS send thread (see tls.h).
+ */
+_IRQL_requires_same_
+_IRQL_requires_max_(DISPATCH_LEVEL)
+void complete_send(_Inout_ wsk_context &ctx, _In_ NTSTATUS status);
 
 _IRQL_requires_same_
 _IRQL_requires_max_(DISPATCH_LEVEL)

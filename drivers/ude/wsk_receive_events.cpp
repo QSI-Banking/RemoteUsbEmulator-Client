@@ -208,6 +208,13 @@ const WSK_CLIENT_CONNECTION_DISPATCH g_dispatch
 const void *usbip::events::wsk_dispatch = &g_dispatch;
 
 _IRQL_requires_same_
+_IRQL_requires_max_(DISPATCH_LEVEL)
+bool usbip::events::received(_In_ UDECXUSBDEVICE device, _Inout_ device_ctx &dev, _In_ const char *data, _In_ size_t len)
+{
+        return ::received(device, dev, data, len);
+}
+
+_IRQL_requires_same_
 _IRQL_requires_(PASSIVE_LEVEL)
 PAGED NTSTATUS usbip::events::start_receive_data(_In_ UDECXUSBDEVICE device)
 {

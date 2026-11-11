@@ -10,10 +10,23 @@
 
 #include <UdeCxTypes.h>
 
+namespace usbip
+{
+struct device_ctx;
+} // namespace usbip
+
 namespace usbip::events
 {
 
 extern const void *wsk_dispatch;
+
+/*
+ * Parses received plaintext, also used by the TLS receive thread (see tls.h).
+ * @return false if the connection must be closed
+ */
+_IRQL_requires_same_
+_IRQL_requires_max_(DISPATCH_LEVEL)
+bool received(_In_ UDECXUSBDEVICE device, _Inout_ device_ctx &dev, _In_ const char *data, _In_ size_t len);
 
 _IRQL_requires_same_
 _IRQL_requires_(PASSIVE_LEVEL)

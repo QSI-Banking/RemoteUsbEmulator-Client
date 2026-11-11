@@ -19,11 +19,11 @@ namespace
 using namespace usbip;
 
 /*
- * Fixed endpoint of the local TLS tunnel. The driver enforces the same values (include/usbip/consts.h),
- * so these are informational only.
+ * Placeholders: the driver ignores them and connects over mutual TLS to the server
+ * configured by an administrator in HKLM\SOFTWARE\USBip\Connection.
  */
-constexpr auto &tunnel_host = "127.0.0.1";
-constexpr auto &tunnel_port = "3240";
+constexpr auto &server_host = "configured";
+constexpr auto &server_port = "0";
 constexpr auto &auth_busid_placeholder = "auth"; // the server returns the real busid in OP_REP_AUTH
 
 /*
@@ -68,8 +68,8 @@ bool usbip::cmd_attach(const attach_args &args)
         vhci::attach_args cmd_args {
                 .config = {
                         .location = {
-                                .hostname = tunnel_host,
-                                .service = tunnel_port,
+                                .hostname = server_host,
+                                .service = server_port,
                                 .busid = auth_busid_placeholder,
                         },
                         .recv_mode = args.recv_mode,

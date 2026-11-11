@@ -12,6 +12,7 @@
 #include "persistent.h"
 #include "ring_buffer.h"
 #include "device_ioctl.h"
+#include "tls.h"
 #include "request_list.h"
 #include "endpoint_list.h"
 #include "wsk_receive_irp.h"
@@ -770,7 +771,8 @@ PAGED wdm::object_reference usbip::device::detach(
         }
 
         bool socket_closed{};
-        if (auto f = dev.wsk_events() ? events::stop_receive_data : stop_receive_data_irp) {
+        if (auto f = dev.ext().tls ? tls::stop_receive_data : 
+                     dev.wsk_events() ? events::stop_receive_data : stop_receive_data_irp) {
                 thread = f(device, socket_closed);
         }
 

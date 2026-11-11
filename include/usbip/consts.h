@@ -37,11 +37,6 @@ enum {
 };
 
 /*
- * Every attach goes to the local TLS tunnel (stunnel), never directly to a server.
- */
-inline constexpr auto& tunnel_host = "127.0.0.1";
-
-/*
  * Placeholder busid sent to the driver; the real busid comes from the server in OP_REP_AUTH.
  */
 inline constexpr auto& auth_busid_placeholder = "auth";

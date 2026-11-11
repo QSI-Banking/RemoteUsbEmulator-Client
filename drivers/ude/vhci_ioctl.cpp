@@ -15,8 +15,10 @@
 #include "persistent.h"
 #include "wsk_receive_irp.h"
 #include "wsk_receive_events.h"
+#include "tls.h"
 
 #include <usbip/proto_op.h>
+#include <libusbip/src/op_common.h>
 
 #include <libdrv/dbgcommon.h>
 #include <libdrv/strconv.h>
@@ -114,6 +116,40 @@ PAGED void log(_In_ const usbip_usb_device &d)
 }
 
 /*
+ * The same as usbip::recv_op_common, but over TLS.
+ */
+_IRQL_requires_same_
+_IRQL_requires_(PASSIVE_LEVEL)
+PAGED NTSTATUS recv_op_common(_Inout_ device_ctx_ext &ext, _In_ UINT16 expected_code)
+{
+        PAGED_CODE();
+
+        op_common r{};
+        auto st = tls::recv(*ext.tls, &r, sizeof(r));
+        if (NT_ERROR(st)) {
+                Trace(TRACE_LEVEL_ERROR, "Receive %!STATUS!", st);
+                return st;
+        }
+        byteswap(r);
+
+        if (r.version != USBIP_VERSION) {
+                Trace(TRACE_LEVEL_ERROR, "version(%#x) != expected(%#x)", r.version, USBIP_VERSION);
+                return USBIP_ERROR_VERSION;
+        }
+
+        if (r.code != expected_code) {
+                Trace(TRACE_LEVEL_ERROR, "code(%#x) != expected(%#x)", r.code, expected_code);
+                return USBIP_ERROR_PROTOCOL;
+        }
+
+        auto op_st = static_cast<op_status_t>(r.status);
+        if (op_st) {
+                Trace(TRACE_LEVEL_ERROR, "code %#x, %!op_status_t!", r.code, op_st);
+        }
+        return op_status_error(op_st);
+}
+
+/*
  * @see <linux>/tools/usb/usbip/src/usbipd.c, recv_request_import
  */
 _IRQL_requires_same_
@@ -141,7 +177,7 @@ PAGED auto send_req_import(_In_ device_ctx_ext &ext)
         byteswap(req.hdr);
         byteswap(req.body);
 
-        return send(ext.sock, memory::stack, &req, sizeof(req));
+        return tls::send(*ext.tls, &req, sizeof(req));
 }
 
 _IRQL_requires_same_
@@ -149,14 +185,15 @@ _IRQL_requires_(PASSIVE_LEVEL)
 PAGED NTSTATUS recv_rep_import(_In_ device_ctx_ext &ext, _In_ memory pool, _Out_ op_import_reply &reply)
 {
         PAGED_CODE();
+        UNREFERENCED_PARAMETER(pool);
         RtlZeroMemory(&reply, sizeof(reply));
 
-        auto st = recv_op_common(ext.sock, OP_REP_IMPORT);
+        auto st = recv_op_common(ext, OP_REP_IMPORT);
         if (NT_ERROR(st)) {
                 return st;
         }
 
-        st = recv(ext.sock, pool, &reply, sizeof(reply));
+        st = tls::recv(*ext.tls, &reply, sizeof(reply));
         if (NT_ERROR(st)) {
                 Trace(TRACE_LEVEL_ERROR, "Receive op_import_reply %!STATUS!", st);
                 return st;
@@ -225,7 +262,7 @@ PAGED NTSTATUS send_req_auth(_Inout_ device_ctx_ext &ext)
         byteswap(req.hdr);
         auto len = static_cast<ULONG>(sizeof(req.hdr) + (p - req.body));
 
-        st = send(ext.sock, memory::stack, &req, len);
+        st = tls::send(*ext.tls, &req, len);
         RtlSecureZeroMemory(&req, sizeof(req));
 
         return st;
@@ -241,13 +278,13 @@ PAGED NTSTATUS recv_rep_auth(_Inout_ device_ctx_ext &ext)
 {
         PAGED_CODE();
 
-        NTSTATUS st = recv_op_common(ext.sock, OP_REP_AUTH);
+        NTSTATUS st = recv_op_common(ext, OP_REP_AUTH);
         if (NT_ERROR(st)) {
                 return st; // USBIP_ERROR_ST_AUTH_FAILED, USBIP_ERROR_ST_NODEV (no device mapped to the user), etc.
         }
 
         op_auth_reply reply{};
-        st = recv(ext.sock, memory::stack, &reply, sizeof(reply));
+        st = tls::recv(*ext.tls, &reply, sizeof(reply));
         if (NT_ERROR(st)) {
                 Trace(TRACE_LEVEL_ERROR, "Receive op_auth_reply %!STATUS!", st);
                 return st;
@@ -353,7 +390,8 @@ PAGED NTSTATUS plugin(_In_ UDECXUSBDEVICE device, _Inout_ int &port, _Inout_ boo
                 plugged = true;
         }
 
-        auto f = dev.wsk_events() ? events::start_receive_data : start_receive_data_irp;
+        auto f = dev.ext().tls ? tls::start_receive_data : 
+                 dev.wsk_events() ? events::start_receive_data : start_receive_data_irp;
         return f(device);
 }
 
@@ -446,7 +484,12 @@ PAGED auto connected(_In_ WDFREQUEST request, _Inout_ workitem_ctx &ctx, _Inout_
 
         device_state_changed(ctx.vhci, ext.attr, 0, vhci::state::connected);
 
-        auto st = import_remote_device(ext);
+        auto st = tls::connect(ext); // before anything is sent
+        if (NT_ERROR(st)) {
+                return st;
+        }
+
+        st = import_remote_device(ext);
         if (NT_ERROR(st)) {
                 return st;
         }
@@ -694,6 +737,7 @@ PAGED void workitem_cleanup(_In_ WDFOBJECT object)
                 auto &ext = get_device_ctx_ext(mem); // or ctx.ext()
 
                 close_socket(ext.sock);
+                tls::close(ext);
                 device_state_changed(ctx.vhci, ext.attr, 0, vhci::state::disconnected);
 
                 WdfObjectDelete(mem);
@@ -851,7 +895,8 @@ PAGED NTSTATUS stop_attach_attempts(_In_ WDFREQUEST request)
 }
 
 /*
- * Every attach must authenticate, goes only to the local TLS tunnel, and is never retried automatically.
+ * Every attach must authenticate, goes only to the server configured by an administrator
+ * (HKLM\SOFTWARE\USBip\Connection, see tls.cpp) over mutual TLS, and is never retried automatically.
  * Enforced here, not only in usbip.exe, because any local process can send this IOCTL (see Security Note above).
  */
 _IRQL_requires_same_
@@ -897,10 +942,9 @@ PAGED NTSTATUS enforce_authenticated_attach(_Inout_ vhci::ioctl::plugin_hardware
 
         auto &loc = r.config.location;
 
-        auto st = RtlStringCbCopyA(loc.host, sizeof(loc.host), tunnel_host);
-        if (NT_SUCCESS(st)) {
-                st = RtlStringCbCopyA(loc.service, sizeof(loc.service), tcp_port);
-        }
+        r.config.wsk_events = true; // TLS plaintext goes to the ring buffer parser, see tls.h
+
+        auto st = tls::get_server_location(loc.host, sizeof(loc.host), loc.service, sizeof(loc.service));
         if (NT_SUCCESS(st)) {
                 st = RtlStringCbCopyA(loc.busid, sizeof(loc.busid), auth_busid_placeholder); // replaced by OP_REP_AUTH
         }
