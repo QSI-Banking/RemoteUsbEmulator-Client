@@ -158,3 +158,11 @@ SymbolicName=USBIP_ERROR_ST_AUTH_FAILED
 Language=English
 Authentication failed: unknown user or wrong one-time password.
 .
+
+MessageId=
+Severity=Error
+Facility=Device
+SymbolicName=USBIP_ERROR_ST_SERVER_UNAVAILABLE
+Language=English
+The server cannot check the user right now: its user database is unavailable. Try again later or contact the server administrator.
+.

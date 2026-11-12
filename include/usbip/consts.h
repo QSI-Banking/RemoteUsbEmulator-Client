@@ -20,6 +20,7 @@ enum op_status_t // op_common.status
         ST_NODEV, // requested device not found by busid; for OP_REP_AUTH: no device is mapped to the user
         ST_ERROR, // ST_DEV_ERR?
         ST_AUTH_FAILED, // OP_REQ_AUTH rejected (unknown user or wrong one-time password)
+        ST_SERVER_UNAVAILABLE, // the server cannot check the user right now (its user database is unreachable)
 };
 
 /*
