@@ -77,13 +77,18 @@ bool usbip::cmd_port(const port_args &args)
                                              "====================");
                         }
                         print(d);
-                        if (!persistent) {
-                                // nothing to do
-                        } else if (!d.config.user.empty()) {
-                                // Authenticated devices need a fresh one-time password, they cannot be reattached at boot
-                                log::error("port {}: device of user '{}' is not stashed", d.port, d.config.user);
-                        } else {
-                                persistent->push_back(d.config);
+                        if (persistent)
+                        {
+                                if (!d.config.user.empty())
+                                {
+                                        // Authenticated devices need a fresh one-time password, they cannot be reattached at boot
+                                        log::error("port {}: device of user '{}' is not stashed", d.port,
+                                                   d.config.user);
+                                }
+                                else
+                                {
+                                        persistent->push_back(d.config);
+                                }
                         }
                 }
         }
