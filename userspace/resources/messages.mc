@@ -166,3 +166,11 @@ SymbolicName=USBIP_ERROR_ST_SERVER_UNAVAILABLE
 Language=English
 The server cannot check the user right now: its user database is unavailable. Try again later or contact the server administrator.
 .
+
+MessageId=
+Severity=Error
+Facility=Device
+SymbolicName=USBIP_ERROR_ST_DEV_NEEDS_ADMIN
+Language=English
+Your device cannot be attached until an administrator checks it on the server. This is needed after the server restarts, or after the device was unplugged, moved or stopped being shared. Contact the server administrator.
+.

@@ -21,6 +21,7 @@ enum op_status_t // op_common.status
         ST_ERROR, // ST_DEV_ERR?
         ST_AUTH_FAILED, // OP_REQ_AUTH rejected (unknown user or wrong one-time password)
         ST_SERVER_UNAVAILABLE, // the server cannot check the user right now (its user database is unreachable)
+        ST_DEV_NEEDS_ADMIN, // the device needs an administrator on the server (bind review after a restart, or rebind after removal)
 };
 
 /*

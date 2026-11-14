@@ -20,7 +20,7 @@ constexpr auto op_status_str(_In_ op_status_t st)
 {
         constexpr const char* v[] = {
                 "ST_OK", "ST_NA", "ST_DEV_BUSY", "ST_DEV_ERR", "ST_NODEV", "ST_ERROR", "ST_AUTH_FAILED",
-                "ST_SERVER_UNAVAILABLE"
+                "ST_SERVER_UNAVAILABLE", "ST_DEV_NEEDS_ADMIN"
         };
 
         return st >= 0 && static_cast<size_t>(st) < ARRAYSIZE(v) ? v[st] : "op_status_str: out of range";
@@ -38,6 +38,7 @@ constexpr auto op_status_error(_In_ op_status_t st)
                 USBIP_ERROR_ST_ERROR,
                 USBIP_ERROR_ST_AUTH_FAILED,
                 USBIP_ERROR_ST_SERVER_UNAVAILABLE,
+                USBIP_ERROR_ST_DEV_NEEDS_ADMIN,
         };
 
         return st >= 0 && static_cast<size_t>(st) < ARRAYSIZE(v) ? v[st] : USBIP_ERROR_ST_ERROR;
