@@ -63,8 +63,7 @@ void add_cmd_attach(CLI::App &app)
         auto r = std::make_shared<attach_args>();
 
         /*
-         * The server picks the device mapped to the user; the connection always goes to the
-         * local TLS tunnel (127.0.0.1:3240) and is never retried automatically.
+         * The server picks the device mapped to the user and is never retried automatically.
          */
         auto cmd = app.add_subcommand("attach", "Attach the USB device mapped to a user");
         auto rem = cmd;

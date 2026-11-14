@@ -25,8 +25,7 @@ struct global_args
 inline global_args global_args;
 
 /*
- * Attach takes only a user and a one-time password. The endpoint is fixed to the local TLS tunnel,
- * the busid comes from the server, and the attach is never retried automatically.
+ * Attach takes only a user and a one-time password. The busid comes from the server, and the attach is never retried automatically.
  */
 struct attach_args
 {
