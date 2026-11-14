@@ -113,7 +113,7 @@ auto async_reattach(_In_ UDECXUSBDEVICE device, _Inout_ device_ctx &dev, _In_ NT
                 TraceDbg("dev %04x, %!STATUS!", ptr04x(device), st);
         } else {
                 TraceDbg("dev %04x, detaching, %!STATUS!", ptr04x(device), st);
-                device::async_detach_and_delete(device, true);
+                device::async_detach_and_delete(device); // final, the driver never reattaches
         }
 
         return st;

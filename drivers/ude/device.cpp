@@ -794,16 +794,10 @@ PAGED wdm::object_reference usbip::device::detach(
                 ::plugout_and_delete(vhci, device, ext.attr, port, force_delete);
         }
 
-        if (reattach && *ext.config().user) {
-                // A dropped connection is final; the user must attach again with a new one-time password
-                Trace(TRACE_LEVEL_INFORMATION, "dev %04x, user '%s', no reattach", ptr04x(device), ext.config().user);
-                reattach = false;
-        }
-
         if (reattach) {
-                auto ctx = get_vhci_ctx(vhci);
-                auto delayed = plugout_and_delete;
-                start_attach_attempts(vhci, *ctx, ext.attr, delayed);
+                // A dropped connection is final; the user must attach again with a new one-time password.
+                // The driver never attaches a device by itself.
+                Trace(TRACE_LEVEL_INFORMATION, "dev %04x, user '%s', no reattach", ptr04x(device), ext.config().user);
         }
 
         return thread;

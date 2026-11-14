@@ -704,13 +704,9 @@ PAGED void NTAPI complete(_In_ WDFWORKITEM wi)
         TraceDbg("req %04x, %!STATUS!", ptr04x(request), st);
         WdfRequestComplete(request, st);
 
-        if (ctx.one_attempt) {
-                //
-        } else if (auto hash = ext.location_hash(); NT_SUCCESS(st)) {
-                stop_attach_attempts(vhci, hash);
-        } else if (!NT_SUCCESS(st) && can_reattach(ctx.vhci, hash, st)) {
-                stop_attach_attempts(vhci, hash);
-                start_attach_attempts(ctx.vhci, vhci, ext.attr, true);
+        // A failed attach is never retried by the driver: every attach needs a new one-time password.
+        if (!ctx.one_attempt && NT_SUCCESS(st)) {
+                stop_attach_attempts(vhci, ext.location_hash());
         }
 }
 
@@ -1105,37 +1101,12 @@ _IRQL_requires_(PASSIVE_LEVEL)
 PAGED auto set_persistent(_In_ WDFREQUEST request)
 {
         PAGED_CODE();
+        UNREFERENCED_PARAMETER(request);
 
-        wchar_t *buf{};
-        size_t bytes{};
-        auto st = WdfRequestRetrieveInputBuffer(request, 0, reinterpret_cast<PVOID*>(&buf), &bytes);
-        if (!NT_SUCCESS(st)) {
-                return st;
-        }
-
-        auto vhci = get_vhci(request);
-        auto &ctx = *get_vhci_ctx(vhci);
-
-        st = validate_persistent_devices(buf, bytes, ctx.devices_cnt);
-        if (!NT_SUCCESS(st)) {
-                Trace(TRACE_LEVEL_ERROR, "validate_persistent_devices %!STATUS!, bytes %Iu", st, bytes);
-                return st;
-        }
-
-        registry key;
-        st = open(key, DriverRegKeyPersistentState, KEY_SET_VALUE);
-        if (!NT_SUCCESS(st)) {
-                return st;
-        }
-
-        UNICODE_STRING val_name;
-        RtlUnicodeStringInit(&val_name, persistent_devices_value_name);
-
-        st = WdfRegistryAssignValue(key.get(), &val_name, REG_MULTI_SZ, ULONG(bytes), buf);
-        if (!NT_SUCCESS(st)) {
-                Trace(TRACE_LEVEL_ERROR, "WdfRegistryAssignValue(%!USTR!) %!STATUS!, bytes %Iu", &val_name, st, bytes);
-        }
-        return st;
+        // Persistent devices (attached again when the driver is loaded) are not supported:
+        // every attach needs a user and a new one-time password.
+        Trace(TRACE_LEVEL_ERROR, "persistent devices are not supported");
+        return STATUS_NOT_SUPPORTED;
 }
 
 /*
@@ -1220,8 +1191,7 @@ PAGED void device_control(
         case vhci::ioctl::PLUGIN_HARDWARE:
                 st = plugin_hardware(Request, once);
                 break;
-        case vhci::ioctl::PLUGOUT_HARDWARE_AND_REATTACH:
-                reattach = true;
+        case vhci::ioctl::PLUGOUT_HARDWARE_AND_REATTACH: // the same as PLUGOUT_HARDWARE, the driver never reattaches
                 [[fallthrough]];
         case vhci::ioctl::PLUGOUT_HARDWARE:
                 st = plugout_hardware(Request, reattach);

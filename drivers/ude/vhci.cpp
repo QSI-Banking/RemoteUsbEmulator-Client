@@ -1174,7 +1174,7 @@ PAGED NTSTATUS usbip::DeviceAdd(_In_ WDFDRIVER, _Inout_ WDFDEVICE_INIT *init)
 
         if (NT_SUCCESS(st)) { // the framework handles deletion of WDFDEVICE in case of an error
                 Trace(TRACE_LEVEL_INFORMATION, "vhci %04x", ptr04x(vhci));
-                plugin_persistent_devices(vhci);
+                // No device is attached when the driver starts: every attach needs a user and a new one-time password.
         }
 
         return st;

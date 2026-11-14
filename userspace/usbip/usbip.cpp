@@ -110,11 +110,10 @@ void add_cmd_port(CLI::App &app)
 {
         auto r = std::make_shared<port_args>();
 
-        auto cmd = app.add_subcommand("port", "Show/stash imported USB devices")
+        auto cmd = app.add_subcommand("port", "Show imported USB devices")
                 ->callback(pack(cmd_port, r));
 
-        cmd->add_flag("-s,--stash,--persistent", r->persistent,
-                      "Devices listed by the command will be attached every time the driver is loaded (aka persistent devices)");
+        // No persistent devices: every attach needs a user and a new one-time password.
 
         cmd->add_option("number", r->ports, "Hub port number")
                 ->check(CLI::Range(1, MAX_HUB_PORTS))
