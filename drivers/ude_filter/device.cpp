@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2022-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>
+ * Copyright (c) 2026 QSI Banking
  */
 
 #include "device.h"
@@ -62,7 +63,7 @@ PAGED void do_destroy(_Inout_ filter_ext &f)
 }
 
 /*
- * Do not check that HardwareID is "USB\ROOT_HUB30" because above usbip2_ude can be nothing else.
+ * Do not check that HardwareID is "USB\ROOT_HUB30" because above qsiusb_ude can be nothing else.
  * 
  * for (auto cur = IoGetAttachedDeviceReference(pdo); cur; ) { // @see IoGetDeviceAttachmentBaseRef
  * 	auto lower = IoGetLowerDeviceObject(cur);

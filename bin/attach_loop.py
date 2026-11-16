@@ -3,7 +3,7 @@ import subprocess
 import random
 import time
 
-usbip_path = "C:\\Program Files\\USBip\\usbip.exe"
+usbip_path = "C:\\Program Files\\QSIUSB\\qsiusb.exe"
 random.seed()
 
 def run(args):

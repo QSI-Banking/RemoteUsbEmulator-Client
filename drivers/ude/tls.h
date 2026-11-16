@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2026 QSI Banking
+ *
  * Mutual TLS for the connection to usbipd-win.
  */
 

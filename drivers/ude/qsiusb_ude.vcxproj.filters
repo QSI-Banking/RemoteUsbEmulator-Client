@@ -69,7 +69,7 @@
     <ClCompile Include="wsk_receive.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="usbip2_ude.inf" />
+    <Inf Include="qsiusb_ude.inf" />
   </ItemGroup>
   <ItemGroup>
     <None Include="custom_wpp.ini" />

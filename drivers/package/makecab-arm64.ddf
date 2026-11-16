@@ -1,5 +1,5 @@
 .OPTION EXPLICIT ;
-.Set CabinetName1=usbip_win2_arm64.cab
+.Set CabinetName1=qsiusb_arm64.cab
 .Set DiskDirectory1=./ARM64/Release
 .Set CompressionType=LZX
 .Set CabinetFileCountThreshold=0
@@ -10,12 +10,12 @@
 .Set MaxDiskSize=0
 
 .Set DestinationDir= ;
-.Set DestinationDir=usbip2_ude
-arm64\Release\usbip2_ude.sys
-arm64\release\usbip2_ude.inf
-arm64\Release\usbip2_ude.pdb
+.Set DestinationDir=qsiusb_ude
+arm64\Release\qsiusb_ude.sys
+arm64\release\qsiusb_ude.inf
+arm64\Release\qsiusb_ude.pdb
 
-.Set DestinationDir=usbip2_filter
-arm64\Release\usbip2_filter.sys
-arm64\Release\usbip2_filter.inf
-arm64\Release\usbip2_filter.pdb
+.Set DestinationDir=qsiusb_filter
+arm64\Release\qsiusb_filter.sys
+arm64\Release\qsiusb_filter.inf
+arm64\Release\qsiusb_filter.pdb

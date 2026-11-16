@@ -30,7 +30,7 @@
 
 ### Building
 1. Run `bootstrap.bat` to initialize vcpkg and git submodules
-2. Open `usbip_win2.slnx` in Visual Studio (or build via `msbuild usbip_win2.slnx /p:Configuration=Release /p:Platform=x64`)
+2. Open `qsiusb.slnx` in Visual Studio (or build via `msbuild qsiusb.slnx /p:Configuration=Release /p:Platform=x64`)
 3. For driver signing: Right-click "package" project > Properties > Driver Signing > Test Certificate (password: `usbip`)
 4. Build solution (Ctrl+Shift+B or Build > Build Solution)
 

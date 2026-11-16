@@ -1,4 +1,5 @@
 ; Copyright (c) 2023-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>
+; Copyright (c) 2026 QSI Banking
 
 #if Ver < EncodeVer(7,1,0,0)
         #error This script requires Inno Setup 7.1.0 or later
@@ -53,13 +54,13 @@
 #define Copyright GetFileCopyrightString(ExePath)
 #define Company GetFileCompanyString(ExePath)
 
-#define AppGUID "{199505b0-b93d-4521-a8c7-897818e0205a}"
-#define DetachTaskName "USBip Detach All On Reboot Or Shutdown"
+#define AppGUID "{cce7d0f7-54cb-440c-8832-36a4253eff87}"
+#define DetachTaskName "QSIUSB Detach All On Reboot Or Shutdown"
 
-#define FilterDriver "usbip2_filter"
-#define UdeDriver "usbip2_ude"
+#define FilterDriver "qsiusb_filter"
+#define UdeDriver "qsiusb_ude"
 
-#define CLIENT_HWID "ROOT\USBIP_WIN2\UDE"
+#define CLIENT_HWID "ROOT\QSIUSB\UDE"
 
 ; Project's test certificate is no longer installed for github releases since 0.9.7.5.
 ; But it is required during the development.
@@ -88,7 +89,6 @@ AppName={#ProductName}
 AppVersion={#AppVersion}
 AppCopyright={#Copyright}
 AppPublisher={#Company}
-AppPublisherURL=https://github.com/vadimgrn/usbip-win2
 WizardStyle=modern
 DefaultDirName={autopf}\{#ProductName}
 DefaultGroupName={#ProductName}
@@ -113,7 +113,7 @@ AlwaysRestart=yes
 CloseApplications=yes
 CloseApplicationsFilter=*.exe,*.dll
 PrivilegesRequired=admin
-; usbip.exe is added to the system PATH; notify running programs of the change
+; qsiusb.exe is added to the system PATH; notify running programs of the change
 ChangesEnvironment=yes
 
 ; this app can't be installed more than once
@@ -141,7 +141,7 @@ Name: "{commondesktop}\{#ProductName}"; Filename: "{app}\{#GuiExeName}"; Tasks: 
 
 Source: {#SolutionDir + "Readme.md"}; DestDir: "{app}"; Flags: isreadme; Components: main
 
-Source: {#BuildDir + "usbip.exe"}; DestDir: "{app}"; Flags: ignoreversion; Components: main
+Source: {#BuildDir + AppExeName}; DestDir: "{app}"; Flags: ignoreversion; Components: main
 Source: {#BuildDir + "devnode.exe"}; DestDir: "{app}"; Flags: ignoreversion; Components: main
 Source: {#BuildDir + "*.dll"}; DestDir: "{app}"; Flags: ignoreversion; Components: main
 
@@ -164,7 +164,7 @@ Source: {#BuildDir + "package\*"}; DestDir: "{tmp}"; Components: client
 #endif
 
 [Registry]
-; Add the install folder to the system PATH so usbip.exe works from any console; removed again by RemoveFromPath on uninstall
+; Add the install folder to the system PATH so qsiusb.exe works from any console; removed again by RemoveFromPath on uninstall
 Root: HKLM64; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: NeedsAddPath('{app}'); Components: main
 
 [Tasks]
@@ -232,7 +232,7 @@ begin
 #ifdef TEST_SIGNED_DRIVERS
   result := IsTestSigningModeEnabled();
   if not result then
-    SuppressibleMsgBox('To use USBip, enable test-signed drivers to load.' #13#13
+    SuppressibleMsgBox('To use QSIUSB, enable test-signed drivers to load.' #13#13
            'Run "Bcdedit.exe -set TESTSIGNING ON" as Administrator and reboot the PC.',
             mbCriticalError, MB_OK, IDOK);
 #else
@@ -246,7 +246,7 @@ begin
 end;
 
 const
-  // The usbip2_ude driver reads its connection settings from here (drivers\ude\tls.cpp)
+  // The qsiusb_ude driver reads its connection settings from here (drivers\ude\tls.cpp)
   DriverParamsKey = 'SYSTEM\CurrentControlSet\Services\{#UdeDriver}\Parameters';
   LegacyConnectionKey = 'SOFTWARE\USBip\Connection'; // used by early development builds
   DefaultTlsPort = 3241;
@@ -493,7 +493,7 @@ begin
   else if (GetPort() < 1) or (GetPort() > 65535) then
     Result := 'Enter a TLS port between 1 and 65535.'
   else if not IsValidHostName(GetServerName()) then
-    Result := 'Enter the server certificate name, the DNS name in the server certificate (for example usbip-server.corp.local).'
+    Result := 'Enter the server certificate name, the DNS name in the server certificate (for example usb-server.corp.local).'
   else if (Pin <> '') and (Length(Pin) <> 64) then
     Result := 'The server certificate SHA-256 must be 64 hex digits, or empty.'
   else if Length(Thumb) <> 40 then
@@ -582,8 +582,8 @@ begin
     RootFolder := Scheduler.GetFolder('\');
 
     TaskDef := Scheduler.NewTask(0);
-    TaskDef.RegistrationInfo.Author := 'USBip Installer';
-    TaskDef.RegistrationInfo.Description := 'USBip: detach all imported devices on system reboot or shutdown';
+    TaskDef.RegistrationInfo.Author := 'QSIUSB Installer';
+    TaskDef.RegistrationInfo.Description := 'QSIUSB: detach all imported devices on system reboot or shutdown';
 
     Trigger := TaskDef.Triggers.Create(0); // TASK_TRIGGER_EVENT
     Trigger.Subscription := '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[Provider[@Name=''Microsoft-Windows-Kernel-Power''] and (EventID=109)]] or *[System[Provider[@Name=''User32''] and (EventID=1074)]]</Select></Query></QueryList>';
@@ -603,7 +603,7 @@ begin
     Settings.Priority := 7;
 
     Action := TaskDef.Actions.Create(0); // TASK_ACTION_EXEC
-    Action.Path := ExpandConstant('{app}\usbip.exe');
+    Action.Path := ExpandConstant('{app}\{#AppExeName}');
     Action.Arguments := 'detach --all=closeonly';
 
     RootFolder.RegisterTaskDefinition('{#DetachTaskName}', TaskDef, 6, '', '', 5);
@@ -699,7 +699,7 @@ begin
           CatVal := Lowercase(Trim(GetIniString('Version', 'CatalogFile', '', InfDir + FindRec.Name)));
           // Strip optional .cat extension to get the bare catalog base name,
           // then compare for equality — avoids substring false-positives
-          // (e.g. 'usbip2_ude' must not match 'extra_usbip2_ude_old.cat').
+          // (e.g. 'qsiusb_ude' must not match 'extra_qsiusb_ude_old.cat').
           if (Length(CatVal) > 4) and (Copy(CatVal, Length(CatVal) - 3, 4) = '.cat') then
             CatBase := Copy(CatVal, 1, Length(CatVal) - 4)  // remove '.cat'
           else
@@ -839,7 +839,7 @@ begin
   result := true;
 end;
 
-// Check if an existing version of USBip is installed and locate its uninstaller
+// Check if an existing version of QSIUSB is installed and locate its uninstaller
 function GetInstalledUninstallString(var UninstPath, UninstParams: String): Boolean;
 var
   SubKey, UninstStr, LowerStr, Candidate: String;
@@ -939,12 +939,12 @@ begin
         end;
       end
       else
-        Result := 'Failed to automatically uninstall the previous version of USBip (exit code ' + IntToStr(ExitCode) + '). ' +
+        Result := 'Failed to automatically uninstall the previous version of QSIUSB (exit code ' + IntToStr(ExitCode) + '). ' +
                   'Please uninstall it manually before continuing.';
     end
     else
     begin
-      Result := 'Failed to execute uninstaller for the previous version of USBip: ' + SysErrorMessage(ExitCode) + '. ' +
+      Result := 'Failed to execute uninstaller for the previous version of QSIUSB: ' + SysErrorMessage(ExitCode) + '. ' +
                 'Please uninstall it manually before continuing.';
     end;
   end;

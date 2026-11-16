@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>
+ * Copyright (c) 2026 QSI Banking
  */
 
 #include "usbip.h"
@@ -20,7 +21,7 @@ using namespace usbip;
 
 /*
  * Placeholders: the driver ignores them and connects over mutual TLS to the server
- * configured by the client installer (Parameters key of the usbip2_ude service).
+ * configured by the client installer (Parameters key of the qsiusb_ude service).
  */
 constexpr auto &server_host = "configured";
 constexpr auto &server_port = "0";

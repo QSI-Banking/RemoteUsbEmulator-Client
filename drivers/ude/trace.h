@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>
+ * Copyright (c) 2026 QSI Banking
  */
 
 #pragma once
@@ -7,12 +8,12 @@
 //
 // Define the tracing flags.
 //
-// Tracing GUID - ed18c9c5-8322-48ae-bf78-d01d898a1562
+// Tracing GUID - 75c66adb-e7a7-4187-8102-2eeacb97bbe5
 //
 
 #define WPP_CONTROL_GUIDS                                      \
     WPP_DEFINE_CONTROL_GUID(                                   \
-        VhciTraceGuid, (ed18c9c5,8322,48ae,bf78,d01d898a1562), \
+        VhciTraceGuid, (75c66adb,e7a7,4187,8102,2eeacb97bbe5), \
                                                                \
         WPP_DEFINE_BIT(FLAG_GENERAL)                           \
         WPP_DEFINE_BIT(FLAG_USBIP)                             \

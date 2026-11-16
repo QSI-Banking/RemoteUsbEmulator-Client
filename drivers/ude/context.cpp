@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2022-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>
+ * Copyright (c) 2026 QSI Banking
  */
 
 #include "context.h"

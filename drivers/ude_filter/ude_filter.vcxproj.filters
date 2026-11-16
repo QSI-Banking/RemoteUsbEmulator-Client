@@ -19,7 +19,7 @@
     <ClInclude Include="query_interface.h" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="usbip2_filter.inf" />
+    <Inf Include="qsiusb_filter.inf" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

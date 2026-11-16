@@ -68,13 +68,13 @@ BEGIN
     BEGIN
         BLOCK "040004b0"
         BEGIN
-            VALUE "CompanyName", "usbip-win2"
-            VALUE "FileDescription", "usbip for USBip"
+            VALUE "CompanyName", "QSI, Inc"
+            VALUE "FileDescription", "qsiusb command for QSIUSB"
             VALUE "FileVersion", "0.9.8.2"
-            VALUE "InternalName", "usbip.exe"
-            VALUE "LegalCopyright", "Copyright (c) 2022-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>"
-            VALUE "OriginalFilename", "usbip.exe"
-            VALUE "ProductName", "USBip"
+            VALUE "InternalName", "qsiusb.exe"
+            VALUE "LegalCopyright", "Copyright (c) 2022-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>; modifications (c) 2026 QSI Banking"
+            VALUE "OriginalFilename", "qsiusb.exe"
+            VALUE "ProductName", "QSIUSB"
             VALUE "ProductVersion", "0.9.8.2"
         END
     END

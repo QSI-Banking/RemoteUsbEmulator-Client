@@ -1,6 +1,7 @@
 ; Copyright (c) 2022-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>
+; Copyright (c) 2026 QSI Banking
 ;
-; usbip2_filter.inf
+; qsiusb_filter.inf
 ; Upper-level device-specific filter driver.
 ; @see Using an Extension INF File
 
@@ -9,55 +10,55 @@ Signature = "$WINDOWS NT$"
 Class = Extension
 ClassGuid = {e2f84ce7-8efa-411c-aa69-97454ca4cb57}
 Provider = %Manufacturer%
-ExtensionId = {c1e0d1fe-d564-596e-4526-71da1249702a}
-CatalogFile = usbip2_filter.cat
+ExtensionId = {93c48f52-75d0-4d2a-b231-da65ec4811ef}
+CatalogFile = qsiusb_filter.cat
 PnpLockDown = 1
 
 [DestinationDirs]
 DefaultDestDir = 13 ; DriverStore
 
 [SourceDisksNames]
-1 = "USBip Upper Filter Installation Disk"
+1 = "QSI USB/IP Upper Filter Installation Disk"
 
 [SourceDisksFiles]
-usbip2_filter.sys = 1
+qsiusb_filter.sys = 1
 
 [Manufacturer]
 ; Windows 10, version 1903 and later
 %Manufacturer% = Generic, NT$ARCH$.10.0...18362
 
 [Generic.NT$ARCH$.10.0...18362]
-; HWID of "USB Root Hub (USB 3.0)" located on "USBip 3.X Emulated Host Controller"
+; HWID of "USB Root Hub (USB 3.0)" located on "QSI USB/IP Emulated Host Controller"
 ; See C:\Windows\INF\usbhub3.inf
 %DisplayName% = Generic_Inst, USB\ROOT_HUB30
 
 [Generic_Inst.NT$ARCH$]
-CopyFiles = @usbip2_filter.sys
+CopyFiles = @qsiusb_filter.sys
 
 [Generic_Inst.NT$ARCH$.Filters]  
 ; this directive is supported in Windows 10 version 1903 and later
-AddFilter = usbip2_filter,,usbip2_filter_Filter_Inst
+AddFilter = qsiusb_filter,,qsiusb_filter_Filter_Inst
   
-[usbip2_filter_Filter_Inst]
+[qsiusb_filter_Filter_Inst]
 ; HKLM\SYSTEM\CurrentControlSet\Enum\USB\ROOT_HUB30\<DEVICE_ID>\Filters\*Upper
 FilterPosition = Upper
 
 [Generic_Inst.NT$ARCH$.Services]
-AddService = usbip2_filter,,usbip2_filter_Service_Inst
+AddService = qsiusb_filter,,qsiusb_filter_Service_Inst
 
-[usbip2_filter_Service_Inst]
+[qsiusb_filter_Service_Inst]
 DisplayName    = %DisplayName%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 2               ; SERVICE_ERROR_SEVERE
-ServiceBinary  = %13%\usbip2_filter.sys
-AddReg         = usbip2_filter_Service_AddReg
+ServiceBinary  = %13%\qsiusb_filter.sys
+AddReg         = qsiusb_filter_Service_AddReg
 
-[usbip2_filter_Service_AddReg]
+[qsiusb_filter_Service_AddReg]
 ; Inflight Trace Recorder (IFR) parameter "VerboseOn".
 ; The default setting of zero causes the IFR to log errors, warnings, and informational events
 HKR,Parameters,VerboseOn,0x00010001,1 ; show TRACE_LEVEL_VERBOSE
 
 [Strings]
-Manufacturer="USBIP-WIN2"
-DisplayName="USBip Upper Filter for USBHUB3" ; for device and service
+Manufacturer="QSI, Inc"
+DisplayName="QSI USB/IP Upper Filter for USBHUB3" ; for device and service

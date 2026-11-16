@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2023-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>
+ * Copyright (c) 2026 QSI Banking
  */
 
 #include "int_dev_ctrl.h"
@@ -323,8 +324,8 @@ void control_to_vendor_class(_Inout_ URB &urb, _In_ void *context)
 }
 
 /*
- * IRP -> usbip2_filter.sys -> ucx01000.sys -> udecx.sys -> usbip2_ude.sys
- * IRP can be completed by ucx01000 or udecx, in such case usbip2_ude will not receive it.
+ * IRP -> qsiusb_filter.sys -> ucx01000.sys -> udecx.sys -> qsiusb_ude.sys
+ * IRP can be completed by ucx01000 or udecx, in such case qsiusb_ude will not receive it.
  * To detect such issues, all IRPs are inspected upon completion.
  */
 _IRQL_requires_same_

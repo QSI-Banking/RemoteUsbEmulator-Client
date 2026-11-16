@@ -1,7 +1,9 @@
 /*
+ * Copyright (c) 2026 QSI Banking
+ *
  * Mutual TLS for the connection to usbipd-win, see tls.h.
  *
- * Settings, the driver's Parameters key HKLM\SYSTEM\CurrentControlSet\Services\usbip2_ude\Parameters
+ * Settings, the driver's Parameters key HKLM\SYSTEM\CurrentControlSet\Services\qsiusb_ude\Parameters
  * (writable by administrators only, written by the client installer):
  *   Host                        REG_SZ     server name or IP address, required
  *   Port                        REG_DWORD  TLS port of usbipd-win, default 3241
@@ -114,7 +116,7 @@ constexpr ULONG pin_size = 32; // SHA-256
 constexpr auto default_port = 3241UL;
 
 // for messages only, the key is opened with DriverRegKeyParameters
-const UNICODE_STRING settings_key = RTL_CONSTANT_STRING(L"HKLM\\SYSTEM\\CurrentControlSet\\Services\\usbip2_ude\\Parameters");
+const UNICODE_STRING settings_key = RTL_CONSTANT_STRING(L"HKLM\\SYSTEM\\CurrentControlSet\\Services\\qsiusb_ude\\Parameters");
 
 class event_lock
 {

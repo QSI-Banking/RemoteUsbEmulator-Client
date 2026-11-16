@@ -1,6 +1,7 @@
 ; Copyright (c) 2022-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>
+; Copyright (c) 2026 QSI Banking
 ;
-; usbip2_ude.inf
+; qsiusb_ude.inf
 ;
 
 [Version]
@@ -8,17 +9,17 @@ Signature="$WINDOWS NT$"
 Class=USB
 ClassGuid={36FC9E60-C465-11CF-8056-444553540000} ; Devguid.h, GUID_DEVCLASS_USB, USB host controllers and USB hubs
 Provider=%Manufacturer%
-CatalogFile=usbip2_ude.cat
+CatalogFile=qsiusb_ude.cat
 PnpLockDown=1
 
 [DestinationDirs]
 DefaultDestDir = 13 ; Driver package isolation
 
 [SourceDisksNames]
-1 = "USBip UDE Installation Disk"
+1 = "QSI USB/IP UDE Installation Disk"
 
 [SourceDisksFiles]
-usbip2_ude.sys = 1
+qsiusb_ude.sys = 1
 
 [Manufacturer]
 ; Windows 10, version 1809 and later
@@ -26,10 +27,10 @@ usbip2_ude.sys = 1
 %Manufacturer%=Standard,NT$ARCH$.10.0...17763
 
 [Standard.NT$ARCH$.10.0...17763]
-%DisplayName%=ude_Device, ROOT\USBIP_WIN2\UDE
+%DisplayName%=ude_Device, ROOT\QSIUSB\UDE
 
 [ude_Device.NT]
-CopyFiles=@usbip2_ude.sys
+CopyFiles=@qsiusb_ude.sys
 
 [ude_Device.NT.HW]
 Include=machine.inf
@@ -37,14 +38,14 @@ Needs=PciD3ColdSupported.HW
 
 [ude_Device.NT.Services]
 ; Flags: 0x00000002 (SPSVCINST_ASSOCSERVICE)
-AddService = usbip2_ude,2,ude_Device_Service_Inst
+AddService = qsiusb_ude,2,ude_Device_Service_Inst
 
 [ude_Device_Service_Inst]
 DisplayName    = %DisplayName%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\usbip2_ude.sys ; Driver package isolation
+ServiceBinary  = %13%\qsiusb_ude.sys ; Driver package isolation
 Dependencies   = ucx01000, udecx, tcpip
 AddReg         = ude_Device_Service_AddReg
 
@@ -80,6 +81,6 @@ HKR, Parameters, ReattachFirstDelay, %REG_DWORD%, 30 ; seconds
 HKR, Parameters, ReattachMaxDelay, %REG_DWORD%, 480 ; seconds
 
 [Strings]
-Manufacturer = "USBIP-WIN2"
-DisplayName = "USBip 3.X Emulated Host Controller" ; for device and service
+Manufacturer = "QSI, Inc"
+DisplayName = "QSI USB/IP Emulated Host Controller" ; for device and service
 REG_DWORD = 0x00010001 ; FLG_ADDREG_TYPE_DWORD

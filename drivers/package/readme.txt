@@ -15,4 +15,4 @@ To create the required .CAB files for attestation signing, use the following com
 makecab /f ./drivers/package/makecab-arm64.ddf
 makecab /f ./drivers/package/makecab-amd64.ddf
 
-The files will be generated in the respective `Release` directories for each architecture under the name `usbip_win2_arm64.cab` for ARM64 and `usbip_win2_amd64.cab` for x64. These files are signed and then submitted for attestation signing.
+The files will be generated in the respective `Release` directories for each architecture under the name `qsiusb_arm64.cab` for ARM64 and `qsiusb_amd64.cab` for x64. These files are signed and then submitted for attestation signing.

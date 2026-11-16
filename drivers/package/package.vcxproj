@@ -24,7 +24,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ude\usbip2_ude.vcxproj">
+    <ProjectReference Include="..\ude\qsiusb_ude.vcxproj">
       <Project>{3a3812ce-3370-4b5f-829d-43433267b154}</Project>
     </ProjectReference>
     <ProjectReference Include="..\ude_filter\ude_filter.vcxproj">

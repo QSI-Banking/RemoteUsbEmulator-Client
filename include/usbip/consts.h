@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2023-2026 Vadym Hrynchyshyn <vadimgrn@gmail.com>
+ * Copyright (c) 2026 QSI Banking
  */
 
 #pragma once
@@ -8,7 +9,7 @@ namespace usbip
 {
 
 inline constexpr auto& tcp_port = "3240";
-inline constexpr auto& driver_filename = L"usbip2_ude"; // used by filter driver
+inline constexpr auto& driver_filename = L"qsiusb_ude"; // used by filter driver
 inline constexpr auto& persistent_devices_value_name = L"PersistentDevices";
 
 enum op_status_t // op_common.status

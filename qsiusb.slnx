@@ -7,10 +7,10 @@
     <Deploy />
   </Project>
   <Project Path="drivers/package/package.vcxproj" Id="b7b9ac6f-45cc-4c98-9136-3d6e8f50ad1c">
-    <BuildDependency Project="drivers/ude/usbip2_ude.vcxproj" />
+    <BuildDependency Project="drivers/ude/qsiusb_ude.vcxproj" />
     <Deploy />
   </Project>
-  <Project Path="drivers/ude/usbip2_ude.vcxproj" Id="3a3812ce-3370-4b5f-829d-43433267b154">
+  <Project Path="drivers/ude/qsiusb_ude.vcxproj" Id="3a3812ce-3370-4b5f-829d-43433267b154">
     <BuildDependency Project="userspace/resources/resources.vcxproj" />
     <Deploy />
   </Project>

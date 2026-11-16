@@ -1,4 +1,4 @@
-﻿# Remote USB client (USBip)
+﻿# Remote USB client (QSIUSB)
 
 Attaches a USB device shared by a [RemoteUsbEmulator-Server](https://github.com/QSI-Banking/RemoteUsbEmulator-Server)
 (usbipd) to this Windows PC, such as a license dongle. The connection is mutual TLS, made by the driver itself, and
@@ -32,7 +32,7 @@ Import-PfxCertificate -FilePath .\usbip-dev-client.pfx -CertStoreLocation Cert:\
 
 ## Install
 
-Run the installer (`USBip-<version>-x64-release.exe`) as an administrator. It does not use PowerShell. Its pages:
+Run the installer (`QSIUSB-<version>-x64-release.exe`) as an administrator. It does not use PowerShell. Its pages:
 
 | Page | Field | Notes |
 |---|---|---|
@@ -42,7 +42,7 @@ Run the installer (`USBip-<version>-x64-release.exe`) as an administrator. It do
 | | Server certificate pin | Optional SHA-256 of the server certificate; when set, only that certificate is accepted |
 | Client certificate | Certificate | Chosen from Local Computer > Personal certificates with a private key |
 
-Silent install: `USBip-<version>-x64-release.exe /VERYSILENT /SERVER=<address> /PORT=3241 /SERVERNAME=<name> /SERVERPIN=<sha256> /CLIENTCERT=<SHA-1 thumbprint>`
+Silent install: `QSIUSB-<version>-x64-release.exe /VERYSILENT /SERVER=<address> /PORT=3241 /SERVERNAME=<name> /SERVERPIN=<sha256> /CLIENTCERT=<SHA-1 thumbprint>`
 
 The settings are kept in the driver's Parameters registry key, which only administrators can change.
 To change them, run the installer again.
@@ -54,13 +54,13 @@ To change them, run the installer again.
 
 ## Ongoing use
 
-`usbip.exe` is on the PATH:
+`qsiusb.exe` is on the PATH:
 
 | Task | Command |
 |---|---|
-| Attach your device | `usbip attach --user <name>` (asks for the code), or `--otp <code>` |
-| See attached devices | `usbip port` |
-| Detach | `usbip detach --port <port>`, or `usbip detach --all` |
+| Attach your device | `qsiusb attach --user <name>` (asks for the code), or `--otp <code>` |
+| See attached devices | `qsiusb port` |
+| Detach | `qsiusb detach --port <port>`, or `qsiusb detach --all` |
 
 A session ends at the server's time limit, when you detach, or when an administrator ends it. The client never
 reconnects by itself, also not after a dropped connection or a reboot: attach again with a new code.
@@ -91,10 +91,10 @@ reconnects by itself, also not after a dropped connection or a reboot: attach ag
 Visual Studio with the WDK. Build Release for any PC without Visual Studio (Debug builds need the debug C++ runtime):
 
 ```powershell
-& $msbuild usbip_win2.slnx /restore /m /p:Configuration=Release /p:Platform=x64
+& $msbuild qsiusb.slnx /restore /m /p:Configuration=Release /p:Platform=x64
 ```
 
-The installer is `x64\Release\USBip-<version>-x64-release.exe`. Test plan: TESTING.md in the server repository.
+The installer is `x64\Release\QSIUSB-<version>-x64-release.exe`. Test plan: TESTING.md in the server repository.
 
 ## Credits and license
 
