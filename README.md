@@ -71,13 +71,15 @@ reconnects by itself, also not after a dropped connection or a reboot: attach ag
   sending anything. It presents this PC's client certificate.
 - The one-time code is sent only inside that connection and is not stored.
 - No automatic reconnect, no persistent devices: every attach needs a user and a new code.
+- An attach fails with a time-out if the server stays silent for 30 seconds during the handshake or sign-in.
 - Only administrators can change the settings. No passwords or secrets are stored on the client.
 
 ## Troubleshooting
 
 | Message | Meaning | What to do |
 |---|---|---|
-| Authentication failed | Unknown user, wrong code, or a code that was already used | Wait for the next code; check the phone's clock |
+| Authentication failed | Unknown user, wrong code, or a code that was already used | Wait for the next code; check the phone's clock. Three wrong codes within a minute make the device unavailable until the server administrator shares it again |
+| The I/O operation timed out | The server accepted the connection but did not answer within 30 seconds | Check the address and port; tell the server administrator |
 | No device is bound to user | Your user has no device on this server | Ask the server administrator |
 | Cannot be attached until an administrator checks it | The server restarted, or the device was unplugged or moved | Ask the server administrator |
 | Server unavailable | The server cannot reach its database | Try later; tell the server administrator |

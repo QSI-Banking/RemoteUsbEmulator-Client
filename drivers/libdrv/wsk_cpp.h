@@ -67,6 +67,13 @@ PAGED NTSTATUS getlocaladdr(_In_ SOCKET *sock, _Out_ SOCKADDR *LocalAddress);
 _IRQL_requires_max_(APC_LEVEL)
 PAGED NTSTATUS getremoteaddr(_In_ SOCKET *sock, _Out_ SOCKADDR *RemoteAddress);
 
+/*
+ * A synchronous receive (the overload without IRP) that waits longer fails with STATUS_IO_TIMEOUT.
+ * @param milliseconds zero waits forever (default)
+ */
+_IRQL_requires_max_(DISPATCH_LEVEL)
+void set_recv_timeout(_In_ SOCKET *sock, _In_ ULONG milliseconds);
+
 _IRQL_requires_max_(APC_LEVEL)
 PAGED NTSTATUS send(_In_ SOCKET *sock, _In_ WSK_BUF *buffer, _In_ ULONG flags = 0);
 

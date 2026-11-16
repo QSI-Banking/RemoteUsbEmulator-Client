@@ -93,7 +93,7 @@ NTSTATUS libdrv::sync_irp::completion(_In_ DEVICE_OBJECT*, _In_ IRP*, _In_ void 
 }
 
 _IRQL_requires_max_(APC_LEVEL)
-PAGED NTSTATUS libdrv::sync_irp::wait_for_completion(_Inout_ NTSTATUS &status)
+PAGED NTSTATUS libdrv::sync_irp::wait_for_completion(_Inout_ NTSTATUS &status, _In_ ULONG timeout_ms)
 {
         PAGED_CODE();
 
@@ -102,12 +102,25 @@ PAGED NTSTATUS libdrv::sync_irp::wait_for_completion(_Inout_ NTSTATUS &status)
         }
 
         if (status == STATUS_PENDING) {
-                auto st = KeWaitForSingleObject(&m_event, Executive, KernelMode, false, nullptr);
+                LARGE_INTEGER timeout{ .QuadPart = -10'000LL*timeout_ms }; // relative, 100 ns units
+
+                auto st = KeWaitForSingleObject(&m_event, Executive, KernelMode, false, timeout_ms ? &timeout : nullptr);
+                bool timed_out = st == STATUS_TIMEOUT;
+
+                if (timed_out) { // the completion routine still runs, wait for it
+                        IoCancelIrp(m_irp);
+                        st = KeWaitForSingleObject(&m_event, Executive, KernelMode, false, nullptr);
+                }
+
                 if (st != STATUS_SUCCESS) {
                         NT_ASSERT(!"sync_irp: KeWaitForSingleObject");
                         return status = st;
                 }
+
                 status = m_irp->IoStatus.Status;
+                if (timed_out && status == STATUS_CANCELLED) { // otherwise it completed just in time
+                        status = STATUS_IO_TIMEOUT;
+                }
         }
 
         return status;

@@ -484,6 +484,11 @@ PAGED auto connected(_In_ WDFREQUEST request, _Inout_ workitem_ctx &ctx, _Inout_
 
         device_state_changed(ctx.vhci, ext.attr, 0, vhci::state::connected);
 
+        // A server that accepts the connection and then stays silent must not hang the attach:
+        // every receive of the TLS handshake, sign-in and import is limited.
+        enum { ATTACH_RECV_TIMEOUT = 30'000 }; // milliseconds
+        wsk::set_recv_timeout(ext.sock, ATTACH_RECV_TIMEOUT);
+
         auto st = tls::connect(ext); // before anything is sent
         if (NT_ERROR(st)) {
                 return st;
@@ -493,6 +498,8 @@ PAGED auto connected(_In_ WDFREQUEST request, _Inout_ workitem_ctx &ctx, _Inout_
         if (NT_ERROR(st)) {
                 return st;
         }
+
+        wsk::set_recv_timeout(ext.sock, 0); // an attached device can be idle for any time
 
         UDECXUSBDEVICE dev{};
         st = device::create(dev, ctx.vhci, ctx.ctx_ext);

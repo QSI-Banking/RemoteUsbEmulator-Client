@@ -108,6 +108,8 @@ struct wsk::SOCKET
         sync_irp send_irp;
         sync_irp misc_irp;
 
+        ULONG recv_timeout_ms; // for the synchronous receive, zero waits forever, see set_recv_timeout
+
         union { // shortcuts to Self->Dispatch
                 const WSK_PROVIDER_BASIC_DISPATCH *Basic;
                 const WSK_PROVIDER_LISTEN_DISPATCH *Listen;
@@ -203,7 +205,7 @@ PAGED auto transfer(_In_ SOCKET *sock, _In_ WSK_BUF *buffer, _In_ ULONG flags, _
         irp->reset();
 
         auto st = sock->invoke(func, sock->Self, buffer, flags, irp->get());
-        irp->wait_for_completion(st);
+        irp->wait_for_completion(st, send ? 0 : sock->recv_timeout_ms);
 
         actual = NT_SUCCESS(st) ? (*irp)->IoStatus.Information : 0;
         return st;
@@ -224,6 +226,13 @@ NTSTATUS wsk::receive(_In_ SOCKET *sock, _In_ WSK_BUF *buffer, _In_ ULONG flags,
 {
         NT_ASSERT(sock);
         return sock->invoke(sock->Connection->WskReceive, sock->Self, buffer, flags, irp);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+void wsk::set_recv_timeout(_In_ SOCKET *sock, _In_ ULONG milliseconds)
+{
+        NT_ASSERT(sock);
+        sock->recv_timeout_ms = milliseconds;
 }
 
 _IRQL_requires_max_(APC_LEVEL)

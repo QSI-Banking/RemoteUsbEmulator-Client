@@ -83,8 +83,12 @@ public:
         }
         constexpr auto& operator *(this auto&& self) { NT_ASSERT(self.m_irp); return *self.m_irp; }
 
+        /*
+         * @param timeout_ms zero waits forever; otherwise the IRP is canceled after this time
+         *        and the status is STATUS_IO_TIMEOUT
+         */
         _IRQL_requires_max_(APC_LEVEL)
-        PAGED NTSTATUS wait_for_completion(_Inout_ NTSTATUS &status);
+        PAGED NTSTATUS wait_for_completion(_Inout_ NTSTATUS &status, _In_ ULONG timeout_ms = 0);
 
         _IRQL_requires_max_(DISPATCH_LEVEL)
         void reset();
