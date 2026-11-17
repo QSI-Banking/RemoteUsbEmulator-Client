@@ -430,7 +430,7 @@ var
 begin
   ServerPage := CreateInputQueryPage(wpSelectComponents,
     'USB/IP server', 'Which server will this computer attach devices from?',
-    'The connection uses mutual TLS directly to usbipd on the server. ' +
+    'The connection uses mutual TLS directly to qsiusbd on the server. ' +
     'The server certificate must chain to a root in this computer''s Trusted Root Certification Authorities store ' +
     'and contain the server certificate name below.' + #13#10#13#10 +
     'Unattended install: /SERVER= /PORT= /SERVERNAME= /SERVERPIN= /CLIENTCERT=');

@@ -1,12 +1,12 @@
 /*
  * Copyright (c) 2026 QSI Banking
  *
- * Mutual TLS for the connection to usbipd-win, see tls.h.
+ * Mutual TLS for the connection to qsiusbd, see tls.h.
  *
  * Settings, the driver's Parameters key HKLM\SYSTEM\CurrentControlSet\Services\qsiusb_ude\Parameters
  * (writable by administrators only, written by the client installer):
  *   Host                        REG_SZ     server name or IP address, required
- *   Port                        REG_DWORD  TLS port of usbipd-win, default 3241
+ *   Port                        REG_DWORD  TLS port of qsiusbd, default 3241
  *   ServerName                  REG_SZ     name that must be in the server certificate (SAN/CN), required
  *   ClientCertificateThumbprint REG_SZ     SHA-1 thumbprint of the client certificate in LocalMachine\My, required
  *   ServerCertificateSha256     REG_SZ     optional pin, SHA-256 of the server certificate (DER)
@@ -552,7 +552,7 @@ PAGED NTSTATUS read_record(_Inout_ session &s, _In_ ULONG offset, _Out_ ULONG &s
         size = record_size(s.in + offset);
         if (!size) {
                 auto p = s.in + offset;
-                Trace(TRACE_LEVEL_ERROR, "Not a TLS record: %02x %02x %02x %02x %02x. Is Port the TLS port of usbipd?",
+                Trace(TRACE_LEVEL_ERROR, "Not a TLS record: %02x %02x %02x %02x %02x. Is Port the TLS port of qsiusbd?",
                                           p[0], p[1], p[2], p[3], p[4]);
                 return STATUS_INVALID_NETWORK_RESPONSE;
         }
@@ -699,7 +699,7 @@ PAGED NTSTATUS handshake(_Inout_ session &s)
                         ULONG size;
                         st = read_record(s, complete_records(s), size);
                         if (NT_ERROR(st)) {
-                                Trace(TRACE_LEVEL_ERROR, "TLS handshake: receive %!STATUS!. Did the server reject the client certificate? See the usbipd log.", st);
+                                Trace(TRACE_LEVEL_ERROR, "TLS handshake: receive %!STATUS!. Did the server reject the client certificate? See the qsiusbd log.", st);
                                 return st;
                         }
                 }

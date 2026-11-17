@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2026 QSI Banking
  *
- * Mutual TLS for the connection to usbipd-win.
+ * Mutual TLS for the connection to qsiusbd.
  */
 
 #pragma once
@@ -13,7 +13,7 @@
 #include <UdeCxTypes.h>
 
 /*
- * Mutual TLS between the driver and usbipd-win, terminated in the kernel with Schannel.
+ * Mutual TLS between the driver and qsiusbd, terminated in the kernel with Schannel.
  *
  * Settings come from the admin-only Parameters key of the driver service (see tls.cpp),
  * so an unprivileged caller of the VHCI device cannot choose where the driver connects.

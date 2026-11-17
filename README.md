@@ -1,14 +1,14 @@
 ﻿# Remote USB client (QSIUSB)
 
 Attaches a USB device shared by a [RemoteUsbEmulator-Server](https://github.com/QSI-Banking/RemoteUsbEmulator-Server)
-(usbipd) to this Windows PC, such as a license dongle. The connection is mutual TLS, made by the driver itself, and
+(qsiusbd) to this Windows PC, such as a license dongle. The connection is mutual TLS, made by the driver itself, and
 each attach needs the user's name and a one-time code from their authenticator app.
 
 ## Requirements
 
 - Windows 10 x64 version 1903 or later.
 - A **client certificate** with its private key in Local Computer > Personal, issued by the CA the server trusts.
-  The server administrator must allow it (`usbipd client add`).
+  The server administrator must allow it (`qsiusbd client add`).
 - The CA of the **server certificate** in Local Computer > Trusted Root, and the server's address, port and
   certificate name.
 - **Test signing, for now.** The driver is signed with a test certificate, so Windows loads it only with Secure Boot
@@ -83,7 +83,7 @@ reconnects by itself, also not after a dropped connection or a reboot: attach ag
 | No device is bound to user | Your user has no device on this server | Ask the server administrator |
 | Cannot be attached until an administrator checks it | The server restarted, or the device was unplugged or moved | Ask the server administrator |
 | Server unavailable | The server cannot reach its database | Try later; tell the server administrator |
-| Connection refused or TLS failure | Wrong address or port, server certificate name or pin does not match, or this PC's certificate is not allowed | Check the installer settings; ask the administrator to check `usbipd client list` |
+| Connection refused or TLS failure | Wrong address or port, server certificate name or pin does not match, or this PC's certificate is not allowed | Check the installer settings; ask the administrator to check `qsiusbd client list` |
 | `VCRUNTIME140D.dll` was not found | A Debug build was installed | Install a Release build |
 
 ## Building from source

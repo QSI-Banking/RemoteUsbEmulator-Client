@@ -85,7 +85,7 @@ auto assign(_Inout_ vhci::imported_device_location &dst, _In_ const device_locat
 }
 
 /*
- * Same rules as the server (usbipd-win UserNames): 1..63 characters from [A-Za-z0-9._-].
+ * Same rules as the server (qsiusbd UserNames): 1..63 characters from [A-Za-z0-9._-].
  */
 constexpr auto is_valid_user_name(_In_ std::string_view s) noexcept
 {
